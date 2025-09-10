@@ -18,7 +18,7 @@ const Login = () => {
 
     try {
       await login(email, password);
-      navigate('/dashboard');
+      navigate('/my-readar');
     } catch (error) {
       setError('invalid email or password');
     } finally {

@@ -1,3 +1,5 @@
+// search books to buy or borrow
+
 import React, { useState, useEffect } from 'react';
 import { api } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -64,7 +66,7 @@ const BookSearch = () => {
 
   return (
     <div className="max-w-6xl mx-auto">
-      <h1 className="text-3xl font-bold text-gray-900 mb-6">search books</h1>
+      <h1 className="text-3xl font-bold text-gray-900 mb-6">search books to buy or borrow</h1>
       
       {/*search filters*/}
       <div className="bg-white p-6 rounded-lg shadow mb-6">

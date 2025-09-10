@@ -9,7 +9,7 @@ from io import StringIO
 import openpyxl
 
 from database import get_db
-from models import Book, User, BookStatus
+from models import Book, User, BookStatus, Transaction
 from routers.auth import get_current_user
 from pydantic import BaseModel
 
@@ -18,7 +18,7 @@ router = APIRouter()
 class BookCreate(BaseModel):
     isbn: str = None
     title: str
-    author: str
+    author: str = None
     genre: str = None
     description: str = None
     price: float
@@ -33,7 +33,7 @@ class BookResponse(BaseModel):
     id: int
     isbn: str = None
     title: str
-    author: str
+    author: str = None
     genre: str = None
     description: str = None
     price: float
@@ -68,7 +68,14 @@ async def create_book(
     if current_user.user_type not in ["seller", "lender"]:
         raise HTTPException(status_code=403, detail="only sellers and lenders can add books")
     
-    db_book = Book(**book.dict(), owner_id=current_user.id)
+    # create search text by combining title, author, and genre
+    search_text = f"{book.title} {book.author or ''} {book.genre or ''} {book.description or ''}".strip()
+    
+    book_data = book.dict()
+    book_data['search_text'] = search_text
+    book_data['owner_id'] = current_user.id
+    
+    db_book = Book(**book_data)
     db.add(db_book)
     db.commit()
     db.refresh(db_book)
@@ -281,3 +288,42 @@ async def get_my_books(
 ):
     books = db.query(Book).filter(Book.owner_id == current_user.id).all()
     return books
+
+class TransactionResponse(BaseModel):
+    id: int
+    book_title: str
+    buyer_id: int
+    buyer_name: str
+    price: float
+    transaction_type: str
+    status: str
+    created_at: datetime
+
+@router.get("/my/sales")
+async def get_my_sales(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # get all sales by current user
+    sales = (
+        db.query(Transaction, Book, User)
+        .join(Book, Transaction.book_id == Book.id)
+        .join(User, Transaction.buyer_id == User.id)
+        .filter(Transaction.seller_id == current_user.id)
+        .order_by(Transaction.created_at.desc())
+        .all()
+    )
+    
+    return [
+        {
+            "id": transaction.id,
+            "book_title": book.title,
+            "buyer_id": buyer.id,
+            "buyer_name": f"{buyer.first_name} {buyer.last_name}",
+            "price": transaction.price,
+            "transaction_type": transaction.transaction_type,
+            "status": transaction.status,
+            "created_at": transaction.created_at
+        }
+        for transaction, book, buyer in sales
+    ]

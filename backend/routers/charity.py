@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import List
 
 from database import get_db
@@ -37,23 +38,29 @@ async def get_charities(
     skip: int = 0,
     limit: int = 100,
     verified_only: bool = True,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
-    query = db.query(Charity)
+    query = select(Charity)
     
     if verified_only:
-        query = query.filter(Charity.is_verified == True)
+        query = query.where(Charity.is_verified == True)
     
-    charities = query.offset(skip).limit(limit).all()
+    query = query.offset(skip).limit(limit)
+    result = await db.execute(query)
+    charities = result.scalars().all()
     return charities
 
 @router.post("/donate", response_model=DonationResponse)
 async def create_donation(
     donation: DonationCreate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
-    charity = db.query(Charity).filter(Charity.id == donation.charity_id).first()
+    # Check if charity exists
+    charity_query = select(Charity).where(Charity.id == donation.charity_id)
+    charity_result = await db.execute(charity_query)
+    charity = charity_result.scalar_one_or_none()
+    
     if not charity:
         raise HTTPException(status_code=404, detail="charity not found")
     
@@ -65,18 +72,23 @@ async def create_donation(
     )
     
     db.add(db_donation)
-    db.commit()
-    db.refresh(db_donation)
+    await db.commit()
+    await db.refresh(db_donation)
     
     return db_donation
 
 @router.get("/my-donations", response_model=List[DonationResponse])
 async def get_my_donations(
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
-    donations = db.query(Donation).filter(
+    query = select(Donation).where(
         Donation.user_id == current_user.id
-    ).order_by(Donation.created_at.desc()).all()
+    ).order_by(Donation.created_at.desc())
+    
+    result = await db.execute(query)
+    donations = result.scalars().all()
+    
+    return donations
     
     return donations

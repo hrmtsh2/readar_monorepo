@@ -158,6 +158,23 @@ class Charity(Base):
     is_verified = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+class Transaction(Base):
+    __tablename__ = "transactions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    book_id = Column(Integer, ForeignKey("books.id"), nullable=False)
+    seller_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    buyer_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    price = Column(Float, nullable=False)
+    transaction_type = Column(String, default="sale")  # sale, rent, etc.
+    status = Column(String, default="completed")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # relationships
+    book = relationship("Book")
+    seller = relationship("User", foreign_keys=[seller_id])
+    buyer = relationship("User", foreign_keys=[buyer_id])
+
 class Donation(Base):
     __tablename__ = "donations"
     

@@ -5,11 +5,15 @@ import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import Dashboard from './pages/Dashboard';
+import MyReadar from './pages/MyReadar';
 import BookSearch from './pages/BookSearch';
 import BookDetail from './pages/BookDetail';
 import Profile from './pages/Profile';
 import Charity from './pages/Charity';
+import Sell from "./pages/Sell";
+import Borrow from "./pages/Borrow";
+import Lend from "./pages/Lend";
+import MyStock from "./pages/MyStock";
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -26,11 +30,14 @@ function App() {
               <Route path="/search" element={<BookSearch />} />
               <Route path="/books/:id" element={<BookDetail />} />
               <Route path="/charity" element={<Charity />} />
+              <Route path="/sell" element={<Sell />}/>
+              <Route path="/borrow" element={<Borrow />}/>
+              <Route path="/lend" element={<Lend />}/>
               <Route 
-                path="/dashboard" 
+                path="/my-readar" 
                 element={
                   <ProtectedRoute>
-                    <Dashboard />
+                    <MyReadar />
                   </ProtectedRoute>
                 } 
               />
@@ -39,6 +46,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <Profile />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/my-stock" 
+                element={
+                  <ProtectedRoute>
+                    <MyStock />
                   </ProtectedRoute>
                 } 
               />

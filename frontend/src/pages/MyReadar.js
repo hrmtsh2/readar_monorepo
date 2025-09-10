@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../utils/api';
 
-const Dashboard = () => {
+const MyReadar = () => {
   const { user } = useAuth();
   const [myBooks, setMyBooks] = useState([]);
   const [newBook, setNewBook] = useState({
@@ -67,11 +67,11 @@ const Dashboard = () => {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">dashboard</h1>
+        <h1 className="text-3xl font-bold text-gray-900">my readar</h1>
         <p className="text-gray-600">welcome back, {user?.first_name}!</p>
       </div>
 
-      {/*seller/lender dashboard*/}
+      {/*unified user dashboard with books, their activity on the platform, and taste matching*/}
       {(user?.user_type === 'seller' || user?.user_type === 'lender') && (
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-lg shadow">
@@ -224,4 +224,4 @@ const Dashboard = () => {
   );
 };
 
-export default Dashboard;
+export default MyReadar;

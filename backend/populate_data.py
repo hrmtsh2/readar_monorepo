@@ -11,7 +11,7 @@ from sqlalchemy import select
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from database import AsyncSessionLocal
-from models import User, Book, UserType, BookStatus
+from models import User, Book, UserType, BookStatus, Transaction
 
 # sample books data (ai-generated)
 SAMPLE_BOOKS = [
@@ -292,6 +292,7 @@ async def create_sample_data():
             
             # create sample books distributed among users
             books_created = 0
+            created_books = []
             for i, book_data in enumerate(SAMPLE_BOOKS):
                 # check if book already exists by title
                 result = await db.execute(select(Book).filter(Book.title == book_data["title"]))
@@ -315,10 +316,48 @@ async def create_sample_data():
                         rental_price_per_day=book_data["price"] * 0.1 if i % 3 else None
                     )
                     db.add(book)
+                    created_books.append(book)
                     books_created += 1
             
             await db.commit()
             print(f"Created {books_created} new books")
+            
+            # refresh books to get IDs
+            for book in created_books:
+                await db.refresh(book)
+            
+            # create sample transactions (sales history)
+            print("Creating sample transactions...")
+            transactions_created = 0
+            
+            # get all sellers and buyers
+            sellers = [u for u in users if u.user_type in [UserType.SELLER, UserType.LENDER]]
+            buyers = [u for u in users if u.user_type == UserType.BUYER]
+            
+            if sellers and buyers and created_books:
+                # create some transactions for the first few books
+                books_to_sell = created_books[:min(10, len(created_books))]  # first 10 books
+                
+                for i, book in enumerate(books_to_sell):
+                    if i < len(buyers):  # ensure we have a buyer
+                        transaction = Transaction(
+                            book_id=book.id,
+                            seller_id=book.owner_id,
+                            buyer_id=buyers[i % len(buyers)].id,
+                            price=book.price * 0.9,  # sold at 10% discount
+                            transaction_type="sale",
+                            status="completed",
+                            created_at=datetime.now() - timedelta(days=i*3)  # spread over time
+                        )
+                        db.add(transaction)
+                        transactions_created += 1
+                        
+                        # update book status to sold
+                        book.status = BookStatus.SOLD
+                        book.stock = 0
+            
+            await db.commit()
+            print(f"Created {transactions_created} sample transactions")
             
             # log summary
             print("\n=== DATA POPULATION COMPLETE ===")

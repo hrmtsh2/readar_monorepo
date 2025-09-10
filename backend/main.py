@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 from database import get_db
 from models import Book, User
-from routers import auth, users, auctions, reservations, charity, reading_data
+from routers import auth, users, auctions, reservations, charity, reading_data, books
 
 load_dotenv()
 
@@ -36,9 +36,11 @@ app.add_middleware(
 # routes
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
-app.include_router(auctions.router, prefix="/api/auctions", tags=["auctions"])
-app.include_router(reservations.router, prefix="/api/reservations", tags=["reservations"])
-app.include_router(reading_data.router, prefix="/api/reading", tags=["reading"])
+app.include_router(books.router, prefix="/api/books", tags=["books"])
+# Temporarily commented out until we fix async issues
+# app.include_router(auctions.router, prefix="/api/auctions", tags=["auctions"])
+# app.include_router(reservations.router, prefix="/api/reservations", tags=["reservations"])
+# app.include_router(reading_data.router, prefix="/api/reading", tags=["reading"])
 app.include_router(charity.router, prefix="/api/charity", tags=["charity"])
 
 @app.get("/")
