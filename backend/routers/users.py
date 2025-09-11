@@ -24,7 +24,6 @@ class UserProfile(BaseModel):
     id: int
     email: str
     username: str
-    user_type: str
     first_name: str
     last_name: str
     phone: str = None

@@ -12,7 +12,7 @@ const Sell = () => {
     const [newBook, setNewBook] = useState({
         title: "",
         author: "",
-        genre: "",
+        tags: "",
         description: "",
         price: "",
         stock: "1",
@@ -71,7 +71,7 @@ const Sell = () => {
             setNewBook({
                 title: "",
                 author: "",
-                genre: "",
+                tags: "",
                 description: "",
                 price: "",
                 stock: "1",
@@ -111,16 +111,6 @@ const Sell = () => {
         );
     }
 
-    if (user.user_type !== 'seller' && user.user_type !== 'lender') {
-        return (
-            <div className="max-w-6xl mx-auto p-6">
-                <div className="text-center">
-                    <h1 className="text-3xl font-bold text-gray-900">access restricted</h1>
-                    <p className="text-gray-600 mt-2">this page is only available for sellers and lenders.</p>
-                </div>
-            </div>
-        );
-    }
 
     return (
         <div className="max-w-6xl mx-auto p-6">
@@ -268,13 +258,14 @@ const Sell = () => {
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            genre
+                                            tags <span className="text-gray-500 text-xs">(comma-separated)</span>
                                         </label>
                                         <input
                                             type="text"
-                                            name="genre"
-                                            value={newBook.genre}
+                                            name="tags"
+                                            value={newBook.tags}
                                             onChange={handleInputChange}
+                                            placeholder="e.g. fiction, mystery, thriller"
                                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                                         />
                                     </div>

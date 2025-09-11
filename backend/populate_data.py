@@ -11,12 +11,14 @@ from sqlalchemy import select
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from database import AsyncSessionLocal
-from models import User, Book, UserType, BookStatus, Transaction
+from models import User, Book, BookStatus, Transaction
 
 # sample books data (ai-generated)
 SAMPLE_BOOKS = [
     {
         "title": "The God of Small Things",
+        "author": "Arundhati Roy",
+        "tags": "fiction, literary, contemporary, indian literature, family drama",
         "search_text": "The God of Small Things Arundhati Roy Fiction Literary Contemporary Indian Literature",
         "isbn": "9780006550686",
         "description": "A beautiful story of love, loss, and family secrets in Kerala.",
@@ -25,6 +27,8 @@ SAMPLE_BOOKS = [
     },
     {
         "title": "Midnight's Children",
+        "author": "Salman Rushdie",
+        "tags": "fiction, magical realism, indian literature, historical, postcolonial",
         "search_text": "Midnight's Children Salman Rushdie Fiction Magical Realism Indian Literature",
         "isbn": "9780099578512",
         "description": "Epic tale of independence and partition through magical realism.",
@@ -33,6 +37,8 @@ SAMPLE_BOOKS = [
     },
     {
         "title": "The White Tiger",
+        "author": "Aravind Adiga",
+        "tags": "fiction, social commentary, modern india, dark comedy, booker prize",
         "search_text": "The White Tiger Aravind Adiga Fiction Social Commentary Modern India",
         "isbn": "9781416562603",
         "description": "Dark comedy about class and corruption in modern India.",
@@ -41,6 +47,8 @@ SAMPLE_BOOKS = [
     },
     {
         "title": "A Suitable Boy",
+        "author": "Vikram Seth",
+        "tags": "fiction, romance, epic, indian family saga, historical",
         "search_text": "A Suitable Boy Vikram Seth Fiction Romance Epic Indian Family Saga",
         "isbn": "9780060926564",
         "description": "Sweeping novel of love and politics in 1950s India.",
@@ -268,7 +276,6 @@ async def create_sample_data():
                         email=user_data["email"],
                         username=user_data["username"],
                         hashed_password="$2b$12$dummy_hash_for_demo_users_only",  # demo password
-                        user_type=UserType.BUYER,  # default to BUYER type
                         first_name=user_data["first_name"],
                         last_name=user_data["last_name"],
                         phone="+91" + str(9000000000 + len(users)),
@@ -304,6 +311,8 @@ async def create_sample_data():
                     
                     book = Book(
                         title=book_data["title"],
+                        author=book_data.get("author"),
+                        tags=book_data.get("tags"),  # comma-separated tags
                         search_text=book_data["search_text"],
                         isbn=book_data["isbn"],
                         description=book_data["description"],
@@ -330,31 +339,33 @@ async def create_sample_data():
             print("Creating sample transactions...")
             transactions_created = 0
             
-            # get all sellers and buyers
-            sellers = [u for u in users if u.user_type in [UserType.SELLER, UserType.LENDER]]
-            buyers = [u for u in users if u.user_type == UserType.BUYER]
             
-            if sellers and buyers and created_books:
+            if users and created_books:
                 # create some transactions for the first few books
                 books_to_sell = created_books[:min(10, len(created_books))]  # first 10 books
                 
                 for i, book in enumerate(books_to_sell):
-                    if i < len(buyers):  # ensure we have a buyer
-                        transaction = Transaction(
-                            book_id=book.id,
-                            seller_id=book.owner_id,
-                            buyer_id=buyers[i % len(buyers)].id,
-                            price=book.price * 0.9,  # sold at 10% discount
-                            transaction_type="sale",
-                            status="completed",
-                            created_at=datetime.now() - timedelta(days=i*3)  # spread over time
-                        )
-                        db.add(transaction)
-                        transactions_created += 1
-                        
-                        # update book status to sold
-                        book.status = BookStatus.SOLD
-                        book.stock = 0
+                    if i < len(users):
+                        # find a different user to be the buyer (not the book owner)
+                        potential_buyers = [u for u in users if u.id != book.owner_id]
+                        if potential_buyers:
+                            buyer = potential_buyers[i % len(potential_buyers)]
+                            
+                            transaction = Transaction(
+                                book_id=book.id,
+                                seller_id=book.owner_id,
+                                buyer_id=buyer.id,
+                                price=book.price * 0.9,  # sold at 10% discount
+                                transaction_type="sale",
+                                status="completed",
+                                created_at=datetime.now() - timedelta(days=i*3)  # spread over time
+                            )
+                            db.add(transaction)
+                            transactions_created += 1
+                            
+                            # update book status to sold
+                            book.status = BookStatus.SOLD
+                            book.stock = 0
             
             await db.commit()
             print(f"Created {transactions_created} sample transactions")

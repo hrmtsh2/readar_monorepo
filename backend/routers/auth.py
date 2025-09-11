@@ -9,7 +9,7 @@ import os
 from dotenv import load_dotenv
 
 from database import get_db
-from models import User, UserType
+from models import User
 from pydantic import BaseModel, EmailStr
 
 load_dotenv()
@@ -27,7 +27,6 @@ class UserCreate(BaseModel):
     email: EmailStr
     username: str
     password: str
-    user_type: UserType
     first_name: str
     last_name: str
     phone: str = None
@@ -40,7 +39,6 @@ class UserResponse(BaseModel):
     id: int
     email: str
     username: str
-    user_type: UserType
     first_name: str
     last_name: str
     is_active: bool
@@ -115,7 +113,6 @@ async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
         email=user.email,
         username=user.username,
         hashed_password=hashed_password,
-        user_type=user.user_type,
         first_name=user.first_name,
         last_name=user.last_name,
         phone=user.phone,

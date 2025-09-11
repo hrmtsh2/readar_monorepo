@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
-from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import and_, or_, select
 from typing import List, Optional
 import csv
 import json
@@ -19,7 +19,7 @@ class BookCreate(BaseModel):
     isbn: str = None
     title: str
     author: str = None
-    genre: str = None
+    tags: str = None  # comma-separated tags like "fiction, romance, historical"
     description: str = None
     price: float
     stock: int = 1
@@ -34,7 +34,7 @@ class BookResponse(BaseModel):
     isbn: str = None
     title: str
     author: str = None
-    genre: str = None
+    tags: str = None  # Comma-separated tags
     description: str = None
     price: float
     stock: int
@@ -49,7 +49,7 @@ class BookUpdate(BaseModel):
     isbn: str = None
     title: str = None
     author: str = None
-    genre: str = None
+    tags: str = None  # Comma-separated tags
     description: str = None
     price: float = None
     stock: int = None
@@ -63,13 +63,11 @@ class BookUpdate(BaseModel):
 async def create_book(
     book: BookCreate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
-    if current_user.user_type not in ["seller", "lender"]:
-        raise HTTPException(status_code=403, detail="only sellers and lenders can add books")
     
-    # create search text by combining title, author, and genre
-    search_text = f"{book.title} {book.author or ''} {book.genre or ''} {book.description or ''}".strip()
+    # create search text by combining title, author, and tags
+    search_text = f"{book.title} {book.author or ''} {book.tags or ''} {book.description or ''}".strip()
     
     book_data = book.dict()
     book_data['search_text'] = search_text
@@ -77,15 +75,15 @@ async def create_book(
     
     db_book = Book(**book_data)
     db.add(db_book)
-    db.commit()
-    db.refresh(db_book)
+    await db.commit()
+    await db.refresh(db_book)
     return db_book
 
 @router.get("/", response_model=List[BookResponse])
 async def search_books(
     q: str = None,
     author: str = None,
-    genre: str = None,
+    tags: str = None,  # Search within comma-separated tags
     min_price: float = None,
     max_price: float = None,
     city: str = None,
@@ -93,12 +91,14 @@ async def search_books(
     for_rent: bool = None,
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
-    query = db.query(Book).join(User)
+    query = select(Book).join(User)
+    
+    filters = []
     
     if q:
-        query = query.filter(
+        filters.append(
             or_(
                 Book.title.ilike(f"%{q}%"),
                 Book.author.ilike(f"%{q}%"),
@@ -107,32 +107,38 @@ async def search_books(
         )
     
     if author:
-        query = query.filter(Book.author.ilike(f"%{author}%"))
+        filters.append(Book.author.ilike(f"%{author}%"))
     
-    if genre:
-        query = query.filter(Book.genre.ilike(f"%{genre}%"))
+    if tags:
+        filters.append(Book.tags.ilike(f"%{tags}%"))
     
     if min_price is not None:
-        query = query.filter(Book.price >= min_price)
+        filters.append(Book.price >= min_price)
     
     if max_price is not None:
-        query = query.filter(Book.price <= max_price)
+        filters.append(Book.price <= max_price)
     
     if city:
-        query = query.filter(User.city.ilike(f"%{city}%"))
+        filters.append(User.city.ilike(f"%{city}%"))
     
     if for_sale is not None:
-        query = query.filter(Book.is_for_sale == for_sale)
+        filters.append(Book.is_for_sale == for_sale)
     
     if for_rent is not None:
-        query = query.filter(Book.is_for_rent == for_rent)
+        filters.append(Book.is_for_rent == for_rent)
     
-    books = query.offset(skip).limit(limit).all()
+    if filters:
+        query = query.where(and_(*filters))
+    
+    query = query.offset(skip).limit(limit)
+    result = await db.execute(query)
+    books = result.scalars().all()
     return books
 
 @router.get("/{book_id}", response_model=BookResponse)
-async def get_book(book_id: int, db: Session = Depends(get_db)):
-    book = db.query(Book).filter(Book.id == book_id).first()
+async def get_book(book_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Book).where(Book.id == book_id))
+    book = result.scalar_one_or_none()
     if not book:
         raise HTTPException(status_code=404, detail="book not found")
     return book
@@ -142,9 +148,10 @@ async def update_book(
     book_id: int,
     book_update: BookUpdate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
-    book = db.query(Book).filter(Book.id == book_id).first()
+    result = await db.execute(select(Book).where(Book.id == book_id))
+    book = result.scalar_one_or_none()
     if not book:
         raise HTTPException(status_code=404, detail="book not found")
     
@@ -155,17 +162,18 @@ async def update_book(
     for field, value in update_data.items():
         setattr(book, field, value)
     
-    db.commit()
-    db.refresh(book)
+    await db.commit()
+    await db.refresh(book)
     return book
 
 @router.delete("/{book_id}")
 async def delete_book(
     book_id: int,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
-    book = db.query(Book).filter(Book.id == book_id).first()
+    result = await db.execute(select(Book).where(Book.id == book_id))
+    book = result.scalar_one_or_none()
     if not book:
         raise HTTPException(status_code=404, detail="book not found")
     
@@ -173,17 +181,15 @@ async def delete_book(
         raise HTTPException(status_code=403, detail="not authorized to delete this book")
     
     db.delete(book)
-    db.commit()
+    await db.commit()
     return {"message": "book deleted"}
 
 @router.post("/import")
 async def import_books(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
-    if current_user.user_type not in ["seller", "lender"]:
-        raise HTTPException(status_code=403, detail="only sellers and lenders can import books")
     
     if not file.filename.endswith(('.csv', '.xlsx')):
         raise HTTPException(status_code=400, detail="only csv and xlsx files supported")
@@ -216,8 +222,8 @@ async def import_books(
                 # optional fields
                 if 'isbn' in row and row['isbn']:
                     book_data['isbn'] = str(row['isbn'])
-                if 'genre' in row and row['genre']:
-                    book_data['genre'] = row['genre']
+                if 'tags' in row and row['tags']:
+                    book_data['tags'] = row['tags']  # Should be comma-separated
                 if 'description' in row and row['description']:
                     book_data['description'] = row['description']
                 if 'stock' in row and row['stock']:
@@ -262,8 +268,8 @@ async def import_books(
                 # optional fields
                 if 'isbn' in col_indices and row[col_indices['isbn']]:
                     book_data['isbn'] = str(row[col_indices['isbn']])
-                if 'genre' in col_indices and row[col_indices['genre']]:
-                    book_data['genre'] = row[col_indices['genre']]
+                if 'tags' in col_indices and row[col_indices['tags']]:
+                    book_data['tags'] = row[col_indices['tags']]  # Should be comma-separated
                 if 'description' in col_indices and row[col_indices['description']]:
                     book_data['description'] = row[col_indices['description']]
                 if 'stock' in col_indices and row[col_indices['stock']]:
@@ -275,7 +281,7 @@ async def import_books(
                 db.add(db_book)
                 books_created += 1
         
-        db.commit()
+        await db.commit()
         return {"message": f"imported {books_created} books successfully"}
     
     except Exception as e:
@@ -284,9 +290,10 @@ async def import_books(
 @router.get("/my/books", response_model=List[BookResponse])
 async def get_my_books(
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
-    books = db.query(Book).filter(Book.owner_id == current_user.id).all()
+    result = await db.execute(select(Book).filter(Book.owner_id == current_user.id))
+    books = result.scalars().all()
     return books
 
 class TransactionResponse(BaseModel):
@@ -302,17 +309,17 @@ class TransactionResponse(BaseModel):
 @router.get("/my/sales")
 async def get_my_sales(
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     # get all sales by current user
-    sales = (
-        db.query(Transaction, Book, User)
+    result = await db.execute(
+        select(Transaction, Book, User)
         .join(Book, Transaction.book_id == Book.id)
         .join(User, Transaction.buyer_id == User.id)
-        .filter(Transaction.seller_id == current_user.id)
+        .where(Transaction.seller_id == current_user.id)
         .order_by(Transaction.created_at.desc())
-        .all()
     )
+    sales = result.all()
     
     return [
         {

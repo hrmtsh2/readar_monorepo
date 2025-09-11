@@ -7,7 +7,6 @@ const Register = () => {
     email: '',
     username: '',
     password: '',
-    user_type: 'buyer',
     first_name: '',
     last_name: '',
     phone: '',
@@ -114,22 +113,6 @@ const Register = () => {
             />
           </div>
 
-          <div>
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              user type
-            </label>
-            <select
-              name="user_type"
-              value={formData.user_type}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="buyer">buyer</option>
-              <option value="seller">seller</option>
-              <option value="lender">lender</option>
-              <option value="charity">charity</option>
-            </select>
-          </div>
         </div>
 
         <div className="mb-4">

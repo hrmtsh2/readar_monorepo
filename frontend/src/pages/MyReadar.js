@@ -9,7 +9,7 @@ const MyReadar = () => {
     title: '',
     author: '',
     price: '',
-    genre: '',
+    tags: '',
     description: '',
     stock: 1,
     is_for_sale: true,
@@ -18,7 +18,7 @@ const MyReadar = () => {
   const [showAddBook, setShowAddBook] = useState(false);
 
   useEffect(() => {
-    if (user?.user_type === 'seller' || user?.user_type === 'lender') {
+    if (user) {
       fetchMyBooks();
     }
   }, [user]);
@@ -43,7 +43,7 @@ const MyReadar = () => {
         title: '',
         author: '',
         price: '',
-        genre: '',
+        tags: '',
         description: '',
         stock: 1,
         is_for_sale: true,
@@ -71,8 +71,8 @@ const MyReadar = () => {
         <p className="text-gray-600">welcome back, {user?.first_name}!</p>
       </div>
 
-      {/*unified user dashboard with books, their activity on the platform, and taste matching*/}
-      {(user?.user_type === 'seller' || user?.user_type === 'lender') && (
+      {/*unified user dashboard*/}
+      {user && (
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex justify-between items-center mb-4">
@@ -120,9 +120,9 @@ const MyReadar = () => {
                   />
                   <input
                     type="text"
-                    name="genre"
-                    placeholder="genre"
-                    value={newBook.genre}
+                    name="tags"
+                    placeholder="tags (comma-separated)"
+                    value={newBook.tags}
                     onChange={handleChange}
                     className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
@@ -203,12 +203,8 @@ const MyReadar = () => {
               ))}
             </div>
           </div>
-        </div>
-      )}
 
-      {/*buyer dashboard*/}
-      {user?.user_type === 'buyer' && (
-        <div className="space-y-6">
+          {/*additional sections */}
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-xl font-semibold mb-4">my reservations</h2>
             <p className="text-gray-500">reservations feature coming soon...</p>

@@ -5,11 +5,8 @@ from sqlalchemy.sql import func
 import enum
 from database import Base
 
-class UserType(enum.Enum):
-    BUYER = "buyer"
-    SELLER = "seller"
-    LENDER = "lender"
-    CHARITY = "charity"
+# UserType enum removed - all users can now buy and sell freely
+# Charity functionality handled separately via Charity model
 
 class BookStatus(enum.Enum):
     IN_STOCK = "in_stock"
@@ -35,7 +32,6 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     username = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
-    user_type = Column(Enum(UserType), nullable=False)
     first_name = Column(String, nullable=False)
     last_name = Column(String, nullable=False)
     phone = Column(String)
@@ -63,9 +59,11 @@ class Book(Base):
     id = Column(Integer, primary_key=True, index=True)
     isbn = Column(String, index=True)
     title = Column(String, nullable=False, index=True)
+    author = Column(String, index=True)  # author field
     # combine search text including title, author, genre for easier searching
     search_text = Column(Text, nullable=False, index=True)  # "The Great Gatsby F. Scott Fitzgerald Fiction Classic..."
     description = Column(Text)
+    tags = Column(Text)  # JSON string storing list of genre tags
     price = Column(Float, nullable=False)
     stock = Column(Integer, default=1)
     status = Column(Enum(BookStatus), default=BookStatus.IN_STOCK)

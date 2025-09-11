@@ -1,4 +1,5 @@
 // search books to buy or borrow
+// "buy/borrow" link on navbar leads to this page
 
 import React, { useState, useEffect } from 'react';
 import { api } from '../utils/api';
@@ -75,7 +76,7 @@ const BookSearch = () => {
             <input
               type="text"
               name="q"
-              placeholder="Search title, author, genre, description..."
+              placeholder="Search title, author, tags, description..."
               value={filters.q}
               onChange={handleFilterChange}
               className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -179,7 +180,7 @@ const BookSearch = () => {
 
       {books.length === 0 && !loading && (
         <div className="text-center py-8">
-          <div className="text-lg text-gray-600">no books found</div>
+          <div className="text-lg text-gray-600">no books found. log in and try again.</div>
         </div>
       )}
     </div>
