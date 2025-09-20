@@ -79,6 +79,24 @@ const MyStock = () => {
                                 }`}>
                                     {book.status.replace('_', ' ').toUpperCase()}
                                 </span>
+                                <button
+                                    className="mt-2 bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs"
+                                    onClick={async () => {
+                                        try {
+                                            const res = await api.delete(`/books/${book.id}`);
+                                            if (res.status === 200) {
+                                                fetchMyBooks();
+                                            } else {
+                                                alert('Failed to remove book: ' + res.status);
+                                            }
+                                        } catch (err) {
+                                            alert('Failed to remove book: ' + (err?.response?.data?.detail || err.message));
+                                            console.error(err);
+                                        }
+                                    }}
+                                >
+                                    remove
+                                </button>
                             </div>
                         ))}
                     </div>

@@ -2,6 +2,7 @@
 // "buy/borrow" link on navbar leads to this page
 
 import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -148,7 +149,7 @@ const BookSearch = () => {
         </div>
       ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {books.map((book) => (
+              {books.filter(book => book.status !== 'reserved').map((book) => (
             <div key={book.id} className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-shadow">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">{book.title}</h3>
               {book.description && <p className="text-gray-600 mb-2 text-sm">{book.description.substring(0, 100)}...</p>}
@@ -162,11 +163,9 @@ const BookSearch = () => {
                 </span>
               </div>
               <div className="flex space-x-2">
-                {book.is_for_sale && (
-                  <button className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded text-sm">
-                    reserve
-                  </button>
-                )}
+                    {book.is_for_sale && (
+                      <ReserveButton book={book} />
+                    )}
                 {book.is_for_rent && (
                   <button className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded text-sm">
                     rent
@@ -187,4 +186,31 @@ const BookSearch = () => {
   );
 };
 
+
+function ReserveButton({ book }) {
+  const navigate = useNavigate();
+  const [loading, setLoading] = React.useState(false);
+
+  const handleReserve = async () => {
+    setLoading(true);
+    try {
+      await api.post(`/books/reserve/${book.id}`);
+      navigate('/reservation-confirmation', { state: { book } });
+    } catch (err) {
+      alert('Failed to reserve book: ' + (err?.response?.data?.detail || err.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded text-sm text-center"
+      onClick={handleReserve}
+      disabled={loading}
+    >
+      {loading ? 'reserving...' : 'reserve'}
+    </button>
+  );
+}
 export default BookSearch;

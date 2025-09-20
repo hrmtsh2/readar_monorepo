@@ -15,6 +15,7 @@ import Borrow from "./pages/Borrow";
 import Lend from "./pages/Lend";
 import MyStock from "./pages/MyStock";
 import ProtectedRoute from './components/ProtectedRoute';
+import ReservationConfirmation from './pages/ReservationConfirmation';
 
 function App() {
   return (
@@ -57,6 +58,7 @@ function App() {
                   </ProtectedRoute>
                 } 
               />
+              <Route path="/reservation-confirmation" element={<ReservationConfirmation />} />
             </Routes>
           </main>
         </div>

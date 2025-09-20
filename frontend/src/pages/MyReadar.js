@@ -199,6 +199,24 @@ const MyReadar = () => {
                       <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">rent</span>
                     )}
                   </div>
+                  <button
+                    className="mt-2 bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs"
+                    onClick={async () => {
+                      try {
+                        const res = await api.delete(`/books/${book.id}`);
+                        if (res.status === 200) {
+                          fetchMyBooks();
+                        } else {
+                          alert('Failed to remove book: ' + res.status);
+                        }
+                      } catch (err) {
+                        alert('Failed to remove book: ' + (err?.response?.data?.detail || err.message));
+                        console.error(err);
+                      }
+                    }}
+                  >
+                    remove
+                  </button>
                 </div>
               ))}
             </div>

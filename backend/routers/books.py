@@ -1,3 +1,19 @@
+@router.post("/reserve/{book_id}")
+async def reserve_book(
+    book_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(Book).where(Book.id == book_id))
+    book = result.scalar_one_or_none()
+    if not book:
+        raise HTTPException(status_code=404, detail="book not found")
+    if book.status == "reserved":
+        raise HTTPException(status_code=400, detail="book already reserved")
+    book.status = "reserved"
+    await db.commit()
+    await db.refresh(book)
+    return {"message": "book reserved"}
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, or_, select
@@ -31,18 +47,18 @@ class BookCreate(BaseModel):
 
 class BookResponse(BaseModel):
     id: int
-    isbn: str = None
+    isbn: Optional[str] = None
     title: str
-    author: str = None
-    tags: str = None  # Comma-separated tags
-    description: str = None
+    author: Optional[str] = None
+    tags: Optional[str] = None  # Comma-separated tags
+    description: Optional[str] = None
     price: float
     stock: int
     status: BookStatus
     is_for_sale: bool
     is_for_rent: bool
-    rental_price_per_day: float = None
-    condition: str = None
+    rental_price_per_day: Optional[float] = None
+    condition: Optional[str] = None
     owner_id: int
 
 class BookUpdate(BaseModel):
@@ -180,7 +196,7 @@ async def delete_book(
     if book.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="not authorized to delete this book")
     
-    db.delete(book)
+    await db.delete(book)
     await db.commit()
     return {"message": "book deleted"}
 
