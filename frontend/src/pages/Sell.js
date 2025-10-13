@@ -64,7 +64,7 @@ const Sell = () => {
                     : null
             };
 
-            await api.post('/books', bookData);
+            await api.post('/books/', bookData);
             
             // close modal and reset form
             setShowAddBookModal(false);

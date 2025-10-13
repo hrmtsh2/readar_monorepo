@@ -1,19 +1,3 @@
-@router.post("/reserve/{book_id}")
-async def reserve_book(
-    book_id: int,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    result = await db.execute(select(Book).where(Book.id == book_id))
-    book = result.scalar_one_or_none()
-    if not book:
-        raise HTTPException(status_code=404, detail="book not found")
-    if book.status == "reserved":
-        raise HTTPException(status_code=400, detail="book already reserved")
-    book.status = "reserved"
-    await db.commit()
-    await db.refresh(book)
-    return {"message": "book reserved"}
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, or_, select
@@ -27,25 +11,46 @@ import openpyxl
 from database import get_db
 from models import Book, User, BookStatus, Transaction
 from routers.auth import get_current_user
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 router = APIRouter()
 
+@router.post("/reserve/{book_id}")
+async def reserve_book(
+    book_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(Book).where(Book.id == book_id))
+    book = result.scalar_one_or_none()
+    if not book:
+        raise HTTPException(status_code=404, detail="book not found")
+    if book.status == BookStatus.RESERVED:
+        raise HTTPException(status_code=400, detail="book already reserved")
+    book.status = BookStatus.RESERVED
+    await db.commit()
+    await db.refresh(book)
+    return {"message": "book reserved"}
+
 class BookCreate(BaseModel):
-    isbn: str = None
+    model_config = ConfigDict(from_attributes=True)
+    
+    isbn: Optional[str] = None
     title: str
-    author: str = None
-    tags: str = None  # comma-separated tags like "fiction, romance, historical"
-    description: str = None
+    author: Optional[str] = None
+    tags: Optional[str] = None  # comma-separated tags like "fiction, romance, historical"
+    description: Optional[str] = None
     price: float
     stock: int = 1
     status: BookStatus = BookStatus.IN_STOCK
     is_for_sale: bool = True
     is_for_rent: bool = False
-    rental_price_per_day: float = None
-    condition: str = None
+    rental_price_per_day: Optional[float] = None
+    condition: Optional[str] = None
 
 class BookResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
     isbn: Optional[str] = None
     title: str
@@ -62,18 +67,20 @@ class BookResponse(BaseModel):
     owner_id: int
 
 class BookUpdate(BaseModel):
-    isbn: str = None
-    title: str = None
-    author: str = None
-    tags: str = None  # Comma-separated tags
-    description: str = None
-    price: float = None
-    stock: int = None
-    status: BookStatus = None
-    is_for_sale: bool = None
-    is_for_rent: bool = None
-    rental_price_per_day: float = None
-    condition: str = None
+    model_config = ConfigDict(from_attributes=True)
+    
+    isbn: Optional[str] = None
+    title: Optional[str] = None
+    author: Optional[str] = None
+    tags: Optional[str] = None  # Comma-separated tags
+    description: Optional[str] = None
+    price: Optional[float] = None
+    stock: Optional[int] = None
+    status: Optional[BookStatus] = None
+    is_for_sale: Optional[bool] = None
+    is_for_rent: Optional[bool] = None
+    rental_price_per_day: Optional[float] = None
+    condition: Optional[str] = None
 
 @router.post("/", response_model=BookResponse)
 async def create_book(
@@ -85,7 +92,12 @@ async def create_book(
     # create search text by combining title, author, and tags
     search_text = f"{book.title} {book.author or ''} {book.tags or ''} {book.description or ''}".strip()
     
-    book_data = book.dict()
+    # Use model_dump() for Pydantic v2 or dict() for v1
+    try:
+        book_data = book.model_dump()  # Pydantic v2
+    except AttributeError:
+        book_data = book.dict()  # Pydantic v1
+        
     book_data['search_text'] = search_text
     book_data['owner_id'] = current_user.id
     
@@ -350,3 +362,73 @@ async def get_my_sales(
         }
         for transaction, book, buyer in sales
     ]
+
+
+@router.get("/reservations")
+async def get_user_reservations(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get all reservations made by the current user"""
+    from models import Reservation, ReservationStatus
+    
+    query = select(
+        Reservation,
+        Book,
+        User.first_name.label("seller_first_name"),
+        User.last_name.label("seller_last_name"), 
+        User.email.label("seller_email"),
+        User.phone.label("seller_phone"),
+        User.city.label("seller_city"),
+        User.state.label("seller_state")
+    ).join(
+        Book, Reservation.book_id == Book.id
+    ).join(
+        User, Book.owner_id == User.id
+    ).where(
+        Reservation.user_id == current_user.id
+    ).order_by(Reservation.created_at.desc())
+    
+    result = await db.execute(query)
+    reservations_data = result.all()
+    
+    reservations = []
+    for reservation, book, seller_first_name, seller_last_name, seller_email, seller_phone, seller_city, seller_state in reservations_data:
+        # Create location string from seller's location
+        book_location = ""
+        if seller_city and seller_state:
+            book_location = f"{seller_city}, {seller_state}"
+        elif seller_city:
+            book_location = seller_city
+        elif seller_state:
+            book_location = seller_state
+        else:
+            book_location = "Location not specified"
+            
+        reservation_dict = {
+            "id": reservation.id,
+            "book_title": book.title,
+            "book_author": book.author,
+            "total_price": float(book.price),
+            "amount_paid": float(reservation.reservation_fee),
+            "remaining_amount": float(book.price - reservation.reservation_fee),
+            "status": reservation.status.value,
+            "created_at": reservation.created_at.isoformat(),
+            "valid_until": reservation.expires_at.isoformat(),
+            "book_location": book_location
+        }
+        
+        # Only show seller contact if payment is confirmed
+        if reservation.status == ReservationStatus.CONFIRMED:
+            reservation_dict.update({
+                "seller_contact": True,
+                "seller_name": f"{seller_first_name} {seller_last_name}",
+                "seller_email": seller_email,
+                "seller_phone": seller_phone
+            })
+        else:
+            reservation_dict["seller_contact"] = False
+    
+        reservations.append(reservation_dict)
+    
+    return reservations

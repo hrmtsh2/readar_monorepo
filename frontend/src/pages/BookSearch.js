@@ -45,7 +45,9 @@ const BookSearch = () => {
       });
 
       const response = await api.get(`/books?${params}`);
-      setBooks(response.data);
+  // Sort books by created_at descending (latest first)
+  const sortedBooks = [...response.data].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  setBooks(sortedBooks);
     } catch (error) {
       console.error('search failed:', error);
     } finally {
@@ -189,27 +191,18 @@ const BookSearch = () => {
 
 function ReserveButton({ book }) {
   const navigate = useNavigate();
-  const [loading, setLoading] = React.useState(false);
 
-  const handleReserve = async () => {
-    setLoading(true);
-    try {
-      await api.post(`/books/reserve/${book.id}`);
-      navigate('/reservation-confirmation', { state: { book } });
-    } catch (err) {
-      alert('Failed to reserve book: ' + (err?.response?.data?.detail || err.message));
-    } finally {
-      setLoading(false);
-    }
+  const handleReserve = () => {
+    // Navigate to mock payment page with book data
+    navigate('/mock-payment', { state: { book } });
   };
 
   return (
     <button
       className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded text-sm text-center"
       onClick={handleReserve}
-      disabled={loading}
     >
-      {loading ? 'reserving...' : 'reserve'}
+      Reserve & Pay
     </button>
   );
 }

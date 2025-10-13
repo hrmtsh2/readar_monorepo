@@ -3,7 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 import uvicorn
 from dotenv import load_dotenv
-from routers import auth, users, auctions, reservations, charity, reading_data, books
+from routers.auth import router as auth_router
+from routers.users import router as users_router
+from routers.charity import router as charity_router
+from routers.books import router as books_router
+from routers.payments import router as payments_router
 
 load_dotenv()
 
@@ -26,14 +30,11 @@ app.add_middleware(
 )
 
 # routes
-app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
-app.include_router(users.router, prefix="/api/users", tags=["users"])
-app.include_router(books.router, prefix="/api/books", tags=["books"])
-# Temporarily commented out until we fix async issues
-# app.include_router(auctions.router, prefix="/api/auctions", tags=["auctions"])
-# app.include_router(reservations.router, prefix="/api/reservations", tags=["reservations"])
-# app.include_router(reading_data.router, prefix="/api/reading", tags=["reading"])
-app.include_router(charity.router, prefix="/api/charity", tags=["charity"])
+app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
+app.include_router(users_router, prefix="/api/users", tags=["users"])
+app.include_router(books_router, prefix="/api/books", tags=["books"])
+app.include_router(payments_router, prefix="/api/payments", tags=["payments"])
+app.include_router(charity_router, prefix="/api/charity", tags=["charity"])
 
 @app.get("/")
 async def root():

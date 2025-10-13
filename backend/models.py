@@ -13,6 +13,7 @@ class BookStatus(enum.Enum):
     EXPECTED = "expected"
     LENT = "lent"
     SOLD = "sold"
+    RESERVED = "reserved"
 
 class AuctionStatus(enum.Enum):
     ACTIVE = "active"
@@ -24,6 +25,12 @@ class ReservationStatus(enum.Enum):
     CONFIRMED = "confirmed"
     CANCELLED = "cancelled"
     COMPLETED = "completed"
+
+class PaymentStatus(enum.Enum):
+    PENDING = "pending"
+    PAID = "paid"
+    FAILED = "failed"
+    REFUNDED = "refunded"
 
 class User(Base):
     __tablename__ = "users"
@@ -120,11 +127,31 @@ class Reservation(Base):
     reservation_fee = Column(Float, nullable=False)
     status = Column(Enum(ReservationStatus), default=ReservationStatus.PENDING)
     expires_at = Column(DateTime(timezone=True), nullable=False)
+    payment_id = Column(String)  # Razorpay payment ID
+    razorpay_order_id = Column(String)  # Razorpay order ID
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # relationships
     book = relationship("Book", back_populates="reservations")
     user = relationship("User", back_populates="reservations")
+    payments = relationship("Payment", back_populates="reservation")
+
+class Payment(Base):
+    __tablename__ = "payments"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    reservation_id = Column(Integer, ForeignKey("reservations.id"), nullable=False)
+    razorpay_order_id = Column(String, nullable=False)
+    razorpay_payment_id = Column(String)
+    amount = Column(Float, nullable=False)
+    currency = Column(String, default="INR")
+    status = Column(Enum(PaymentStatus), default=PaymentStatus.PENDING)
+    gateway_response = Column(Text)  # Store full gateway response
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # relationships
+    reservation = relationship("Reservation", back_populates="payments")
 
 class ReadingData(Base):
     __tablename__ = "reading_data"

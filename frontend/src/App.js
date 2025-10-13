@@ -11,11 +11,13 @@ import BookDetail from './pages/BookDetail';
 import Profile from './pages/Profile';
 import Charity from './pages/Charity';
 import Sell from "./pages/Sell";
-import Borrow from "./pages/Borrow";
-import Lend from "./pages/Lend";
 import MyStock from "./pages/MyStock";
 import ProtectedRoute from './components/ProtectedRoute';
 import ReservationConfirmation from './pages/ReservationConfirmation';
+import PaymentPage from './pages/PaymentPage';
+import PaymentSuccess from './pages/PaymentSuccess';
+import SellerDashboard from './pages/SellerDashboard';
+import MockPayment from './pages/MockPayment';
 
 function App() {
   return (
@@ -32,8 +34,6 @@ function App() {
               <Route path="/books/:id" element={<BookDetail />} />
               <Route path="/charity" element={<Charity />} />
               <Route path="/sell" element={<Sell />}/>
-              <Route path="/borrow" element={<Borrow />}/>
-              <Route path="/lend" element={<Lend />}/>
               <Route 
                 path="/my-readar" 
                 element={
@@ -59,6 +59,38 @@ function App() {
                 } 
               />
               <Route path="/reservation-confirmation" element={<ReservationConfirmation />} />
+              <Route 
+                path="/mock-payment" 
+                element={
+                  <ProtectedRoute>
+                    <MockPayment />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/payment" 
+                element={
+                  <ProtectedRoute>
+                    <PaymentPage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/payment-success" 
+                element={
+                  <ProtectedRoute>
+                    <PaymentSuccess />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/seller-dashboard" 
+                element={
+                  <ProtectedRoute>
+                    <SellerDashboard />
+                  </ProtectedRoute>
+                } 
+              />
             </Routes>
           </main>
         </div>

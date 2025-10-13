@@ -24,14 +24,14 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/token")
 router = APIRouter()
 
 class UserCreate(BaseModel):
-    email: EmailStr
+    email: EmailStr # enforces valid email id format
     username: str
     password: str
     first_name: str
     last_name: str
     phone: str = None
     address: str = None
-    city: str  # Required field
+    city: str
     state: str = None
     zip_code: str = None
 

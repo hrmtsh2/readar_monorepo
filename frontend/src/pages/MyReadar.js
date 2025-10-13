@@ -5,6 +5,7 @@ import { api } from '../utils/api';
 const MyReadar = () => {
   const { user } = useAuth();
   const [myBooks, setMyBooks] = useState([]);
+  const [myReservations, setMyReservations] = useState([]);
   const [newBook, setNewBook] = useState({
     title: '',
     author: '',
@@ -20,6 +21,7 @@ const MyReadar = () => {
   useEffect(() => {
     if (user) {
       fetchMyBooks();
+      fetchMyReservations();
     }
   }, [user]);
 
@@ -29,6 +31,15 @@ const MyReadar = () => {
       setMyBooks(response.data);
     } catch (error) {
       console.error('failed to fetch books:', error);
+    }
+  };
+
+  const fetchMyReservations = async () => {
+    try {
+      const response = await api.get('/books/reservations');
+      setMyReservations(response.data);
+    } catch (error) {
+      console.error('failed to fetch reservations:', error);
     }
   };
 
@@ -225,7 +236,53 @@ const MyReadar = () => {
           {/*additional sections */}
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-xl font-semibold mb-4">my reservations</h2>
-            <p className="text-gray-500">reservations feature coming soon...</p>
+            {myReservations.length === 0 ? (
+              <p className="text-gray-500">No reservations yet. Start browsing books to make your first reservation!</p>
+            ) : (
+              <div className="space-y-4">
+                {myReservations.map((reservation) => (
+                  <div key={reservation.id} className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-lg">{reservation.book_title}</h3>
+                        <p className="text-gray-600">by {reservation.book_author}</p>
+                        <p className="text-sm text-gray-500 mt-2">
+                          Advance Paid: ₹{reservation.amount_paid} | 
+                          Remaining: ₹{reservation.remaining_amount}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          Valid until: {new Date(reservation.valid_until).toLocaleString()}
+                        </p>
+                        
+                        {reservation.seller_contact && (
+                          <div className="mt-3 p-3 bg-blue-50 rounded border">
+                            <p className="text-sm font-medium text-blue-800">Seller Contact:</p>
+                            <p className="text-sm text-blue-700">{reservation.seller_name}</p>
+                            <p className="text-sm text-blue-700">{reservation.seller_email}</p>
+                            {reservation.seller_phone && (
+                              <p className="text-sm text-blue-700">{reservation.seller_phone}</p>
+                            )}
+                            <p className="text-sm text-blue-700">Location: {reservation.book_location}</p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="ml-4">
+                        <span className={`px-2 py-1 rounded text-sm ${
+                          reservation.status === 'CONFIRMED' 
+                            ? 'bg-green-100 text-green-800'
+                            : reservation.status === 'COMPLETED'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {reservation.status}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           
           <div className="bg-white p-6 rounded-lg shadow">

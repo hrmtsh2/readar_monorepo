@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import List
 
 from database import get_db
@@ -38,16 +40,27 @@ class UserProfile(BaseModel):
 async def get_profile(current_user: User = Depends(get_current_user)):
     return current_user
 
+@router.get("/admin/all", response_model=List[UserProfile])
+async def get_all_users(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    # Simple admin check - you can enhance this with proper role-based access
+    # For now, any logged-in user can view this (remove this in production)
+    result = await db.execute(select(User).order_by(User.created_at.desc()))
+    users = result.scalars().all()
+    return users
+
 @router.put("/profile", response_model=UserProfile)
 async def update_profile(
     user_update: UserUpdate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     update_data = user_update.dict(exclude_unset=True)
     for field, value in update_data.items():
         setattr(current_user, field, value)
     
-    db.commit()
-    db.refresh(current_user)
+    await db.commit()
+    await db.refresh(current_user)
     return current_user

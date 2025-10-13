@@ -23,12 +23,9 @@ const Navbar = () => {
               <Link to="/charity" className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
                 donate
               </Link> */}
-              <Link to="/sell" className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
-                sell
-              </Link>
-              <Link to="/lend" className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
-                buy
-              </Link>
+                <Link to="/sell" className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
+                  sell/lend
+                </Link>
             </div>
           </div>
           {/*elements loaded based on auth state*/}
@@ -40,6 +37,9 @@ const Navbar = () => {
                 </Link>
                 <Link to="/my-readar" className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
                   my readar
+                </Link>
+                <Link to="/seller-dashboard" className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
+                  sales
                 </Link>
                 <Link to="/profile" className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
                   profile
