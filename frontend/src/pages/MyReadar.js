@@ -10,6 +10,7 @@ const MyReadar = () => {
     title: '',
     author: '',
     price: '',
+    weekly_fee: '',
     tags: '',
     description: '',
     stock: 1,
@@ -46,14 +47,17 @@ const MyReadar = () => {
   const handleAddBook = async (e) => {
     e.preventDefault();
     try {
-      await api.post('/books/', {
+      const bookData = {
         ...newBook,
-        price: parseFloat(newBook.price)
-      });
+        price: parseFloat(newBook.price),
+        weekly_fee: newBook.is_for_rent && newBook.weekly_fee ? parseFloat(newBook.weekly_fee) : null
+      };
+      await api.post('/books/', bookData);
       setNewBook({
         title: '',
         author: '',
         price: '',
+        weekly_fee: '',
         tags: '',
         description: '',
         stock: 1,
@@ -176,6 +180,23 @@ const MyReadar = () => {
                     for rent
                   </label>
                 </div>
+                {/* Weekly Fee for Rental */}
+                {newBook.is_for_rent && (
+                  <div className="mb-4">
+                    <input
+                      type="number"
+                      name="weekly_fee"
+                      placeholder="weekly rental fee (₹)"
+                      value={newBook.weekly_fee}
+                      onChange={handleChange}
+                      min="0"
+                      step="0.01"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required={newBook.is_for_rent}
+                    />
+                    <p className="text-sm text-gray-500 mt-1">Amount charged per week for renting this book</p>
+                  </div>
+                )}
                 <div className="flex space-x-2">
                   <button
                     type="submit"
@@ -200,7 +221,12 @@ const MyReadar = () => {
                 <div key={book.id} className="border border-gray-200 p-4 rounded-md">
                   <h3 className="font-semibold text-gray-900">{book.title}</h3>
                   <p className="text-sm text-gray-600">by {book.author}</p>
-                  <p className="text-lg font-bold text-green-600">${book.price}</p>
+                  <div>
+                    <p className="text-lg font-bold text-green-600">₹{book.price}</p>
+                    {book.is_for_rent && book.weekly_fee && (
+                      <p className="text-sm text-blue-600">₹{book.weekly_fee}/week rental</p>
+                    )}
+                  </div>
                   <p className="text-sm text-gray-500">stock: {book.stock}</p>
                   <div className="flex space-x-2 mt-2">
                     {book.is_for_sale && (

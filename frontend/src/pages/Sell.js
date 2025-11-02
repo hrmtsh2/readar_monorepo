@@ -2,30 +2,20 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../utils/api";
 import { useNavigate } from "react-router-dom";
+import AddBookModal from "../components/AddBookModal";
 
 const Sell = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
     const [salesHistory, setSalesHistory] = useState([]);
+    const [userBooks, setUserBooks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showAddBookModal, setShowAddBookModal] = useState(false);
-    const [newBook, setNewBook] = useState({
-        title: "",
-        author: "",
-        tags: "",
-        description: "",
-        price: "",
-        stock: "1",
-        condition: "",
-        is_for_sale: true,
-        is_for_rent: false,
-        rental_price_per_day: ""
-    });
-    const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
         if (user) {
             fetchSalesHistory();
+            fetchUserBooks();
         }
     }, [user]);
 
@@ -42,63 +32,35 @@ const Sell = () => {
         }
     };
 
-    const handleInputChange = (e) => {
-        const { name, value, type, checked } = e.target;
-        setNewBook(prev => ({
-            ...prev,
-            [name]: type === 'checkbox' ? checked : value
-        }));
-    };
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setSubmitting(true);
-
+    const fetchUserBooks = async () => {
         try {
-            const bookData = {
-                ...newBook,
-                price: parseFloat(newBook.price),
-                stock: parseInt(newBook.stock),
-                rental_price_per_day: newBook.rental_price_per_day 
-                    ? parseFloat(newBook.rental_price_per_day) 
-                    : null
-            };
-
-            await api.post('/books/', bookData);
-            
-            // close modal and reset form
-            setShowAddBookModal(false);
-            setNewBook({
-                title: "",
-                author: "",
-                tags: "",
-                description: "",
-                price: "",
-                stock: "1",
-                condition: "",
-                is_for_sale: true,
-                is_for_rent: false,
-                rental_price_per_day: ""
-            });
-
-            // redirect to my-stock page
-            navigate('/my-stock');
+            const response = await api.get('/books/my/books/with-reservations');
+            setUserBooks(response.data);
         } catch (error) {
-            console.error('error adding book:', error);
-            alert('failed to add book. please try again.');
-        } finally {
-            setSubmitting(false);
+            console.error('Error fetching user books:', error);
+            setUserBooks([]);
         }
     };
 
+    const handleBookAdded = () => {
+        fetchUserBooks(); // Refresh the list after adding a book
+    };
+
     const formatDate = (dateString) => {
-        return new Date(dateString).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
+        if (!dateString) return '-';
+        try {
+            const date = new Date(dateString);
+            // Check if date is valid
+            if (isNaN(date.getTime())) return '-';
+            return date.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+        } catch (error) {
+            console.error('Date parsing error:', error);
+            return '-';
+        }
     };
 
     if (!user) {
@@ -171,7 +133,7 @@ const Sell = () => {
                                             {sale.buyer_name} (ID: {sale.buyer_id})
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            ${sale.price.toFixed(2)}
+                                            ₹{sale.price.toFixed(2)}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -194,191 +156,148 @@ const Sell = () => {
                 )}
             </div>
 
-            {/* add book modal */}
-            {showAddBookModal && (
-                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-                    <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-2xl shadow-lg rounded-md bg-white">
-                        <div className="mt-3">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-lg font-medium text-gray-900">add new book</h3>
-                                <button
-                                    onClick={() => setShowAddBookModal(false)}
-                                    className="text-gray-400 hover:text-gray-600"
-                                >
-                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
-                            </div>
-                            
-                            <form onSubmit={handleSubmit} className="space-y-4">
-                                <div className="grid md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            book title *
-                                        </label>
-                                        <input
-                                            type="text"
-                                            name="title"
-                                            value={newBook.title}
-                                            onChange={handleInputChange}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            required
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            author
-                                        </label>
-                                        <input
-                                            type="text"
-                                            name="author"
-                                            value={newBook.author}
-                                            onChange={handleInputChange}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="grid md:grid-cols-3 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            price *
-                                        </label>
-                                        <input
-                                            type="number"
-                                            name="price"
-                                            value={newBook.price}
-                                            onChange={handleInputChange}
-                                            step="0.01"
-                                            min="0"
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            required
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            tags <span className="text-gray-500 text-xs">(comma-separated)</span>
-                                        </label>
-                                        <input
-                                            type="text"
-                                            name="tags"
-                                            value={newBook.tags}
-                                            onChange={handleInputChange}
-                                            placeholder="e.g. fiction, mystery, thriller"
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            stock
-                                        </label>
-                                        <input
-                                            type="number"
-                                            name="stock"
-                                            value={newBook.stock}
-                                            onChange={handleInputChange}
-                                            min="1"
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        condition
-                                    </label>
-                                    <select
-                                        name="condition"
-                                        value={newBook.condition}
-                                        onChange={handleInputChange}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    >
-                                        <option value="">select condition</option>
-                                        <option value="new">new</option>
-                                        <option value="like-new">like new</option>
-                                        <option value="very-good">very good</option>
-                                        <option value="good">good</option>
-                                        <option value="acceptable">acceptable</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        description
-                                    </label>
-                                    <textarea
-                                        name="description"
-                                        value={newBook.description}
-                                        onChange={handleInputChange}
-                                        rows="3"
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        placeholder="describe the book's condition, any notes, etc."
-                                    />
-                                </div>
-
-                                <div className="flex flex-wrap gap-4">
-                                    <label className="flex items-center">
-                                        <input
-                                            type="checkbox"
-                                            name="is_for_sale"
-                                            checked={newBook.is_for_sale}
-                                            onChange={handleInputChange}
-                                            className="mr-2"
-                                        />
-                                        <span className="text-sm text-gray-700">available for sale</span>
-                                    </label>
-                                    <label className="flex items-center">
-                                        <input
-                                            type="checkbox"
-                                            name="is_for_rent"
-                                            checked={newBook.is_for_rent}
-                                            onChange={handleInputChange}
-                                            className="mr-2"
-                                        />
-                                        <span className="text-sm text-gray-700">available for rent</span>
-                                    </label>
-                                </div>
-
-                                {newBook.is_for_rent && (
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            rental price per day
-                                        </label>
-                                        <input
-                                            type="number"
-                                            name="rental_price_per_day"
-                                            value={newBook.rental_price_per_day}
-                                            onChange={handleInputChange}
-                                            step="0.01"
-                                            min="0"
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        />
-                                    </div>
-                                )}
-
-                                <div className="flex justify-end space-x-3 mt-6">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowAddBookModal(false)}
-                                        className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-md transition-colors"
-                                        disabled={submitting}
-                                    >
-                                        cancel
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors disabled:opacity-50"
-                                        disabled={submitting}
-                                    >
-                                        {submitting ? 'adding...' : 'add book'}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
+            {/* user books listing */}
+            <div className="bg-white p-6 rounded-lg shadow mb-6">
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-semibold">your books</h2>
                 </div>
-            )}
+
+                {userBooks.length > 0 ? (
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                                <tr>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        title
+                                    </th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        author
+                                    </th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        description
+                                    </th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        tags
+                                    </th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        price
+                                    </th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        stock
+                                    </th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        listing type
+                                    </th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        condition
+                                    </th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        status
+                                    </th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        reserved by
+                                    </th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        upload date
+                                    </th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        weekly fee
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                                {userBooks.map((book) => (
+                                    <tr key={book.id} className="hover:bg-gray-50">
+                                        <td className="px-4 py-4 text-sm font-medium text-gray-900">
+                                            {book.title}
+                                        </td>
+                                        <td className="px-4 py-4 text-sm text-gray-900">
+                                            {book.author || '-'}
+                                        </td>
+                                        <td className="px-4 py-4 text-sm text-gray-600 max-w-xs truncate">
+                                            {book.description || '-'}
+                                        </td>
+                                        <td className="px-4 py-4 text-sm text-gray-600">
+                                            {book.tags || '-'}
+                                        </td>
+                                        <td className="px-4 py-4 text-sm text-gray-900 font-semibold">
+                                            ₹{book.price}
+                                        </td>
+                                        <td className="px-4 py-4 text-sm text-gray-900">
+                                            {book.stock}
+                                        </td>
+                                        <td className="px-4 py-4 text-sm">
+                                            <div className="flex flex-col gap-1">
+                                                {book.is_for_sale && (
+                                                    <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                                        For Sale
+                                                    </span>
+                                                )}
+                                                {book.is_for_rent && (
+                                                    <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                                        For Rent
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-4 text-sm text-gray-900">
+                                            {book.condition || '-'}
+                                        </td>
+                                        <td className="px-4 py-4 text-sm">
+                                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                                book.status === 'in_stock' 
+                                                    ? 'bg-green-100 text-green-800' 
+                                                    : book.status === 'reserved'
+                                                    ? 'bg-yellow-100 text-yellow-800'
+                                                    : book.status === 'sold'
+                                                    ? 'bg-red-100 text-red-800'
+                                                    : 'bg-gray-100 text-gray-800'
+                                            }`}>
+                                                {book.status ? book.status.replace('_', ' ') : '-'}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-4 text-sm text-gray-900">
+                                            {book.reservation ? (
+                                                <div className="flex flex-col">
+                                                    <span className="font-medium">{book.reservation.buyer_name}</span>
+                                                    <span className="text-xs text-gray-500">{book.reservation.buyer_email}</span>
+                                                    <span className="text-xs text-blue-600">Fee: ₹{book.reservation.reservation_fee}</span>
+                                                    <span className={`text-xs mt-1 inline-flex px-2 py-1 rounded-full ${
+                                                        book.reservation.status === 'confirmed' 
+                                                            ? 'bg-green-100 text-green-800'
+                                                            : 'bg-yellow-100 text-yellow-800'
+                                                    }`}>
+                                                        {book.reservation.status}
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-gray-400">-</span>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {book.created_at ? formatDate(book.created_at) : '-'}
+                                        </td>
+                                        <td className="px-4 py-4 text-sm text-gray-900">
+                                            {book.is_for_rent && book.weekly_fee ? `₹${book.weekly_fee}` : '-'}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
+                    <div className="text-center py-8">
+                        <p className="text-gray-500">no books added yet. click "add book" to start!</p>
+                    </div>
+                )}
+            </div>
+
+            {/* add book modal */}
+            <AddBookModal 
+                isOpen={showAddBookModal}
+                onClose={() => setShowAddBookModal(false)}
+                onSuccess={handleBookAdded}
+            />
         </div>
     );
 };

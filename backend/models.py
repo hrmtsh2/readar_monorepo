@@ -78,7 +78,7 @@ class Book(Base):
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     is_for_sale = Column(Boolean, default=True)
     is_for_rent = Column(Boolean, default=False)
-    rental_price_per_day = Column(Float)
+    weekly_fee = Column(Float)
     condition = Column(String)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

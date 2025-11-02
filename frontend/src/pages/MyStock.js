@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../utils/api";
+import AddBookModal from "../components/AddBookModal";
 
 const MyStock = () => {
     const { user } = useAuth();
     const [books, setBooks] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [showAddModal, setShowAddModal] = useState(false);
 
     useEffect(() => {
         if (user) {
@@ -26,6 +28,10 @@ const MyStock = () => {
         }
     };
 
+    const handleBookAdded = () => {
+        fetchMyBooks(); // Refresh the list after adding a book
+    };
+
     if (!user) {
         return (
             <div className="max-w-6xl mx-auto p-6">
@@ -39,9 +45,26 @@ const MyStock = () => {
     return (
         <div className="max-w-6xl mx-auto p-6">
             <div className="mb-6">
-                <h1 className="text-3xl font-bold text-gray-900">my stock</h1>
-                <p className="text-gray-600">manage your books available for sale and rent</p>
+                <div className="flex justify-between items-center">
+                    <div>
+                        <h1 className="text-3xl font-bold text-gray-900">my stock</h1>
+                        <p className="text-gray-600">manage your books available for sale and rent</p>
+                    </div>
+                    <button
+                        onClick={() => setShowAddModal(true)}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+                    >
+                        add book
+                    </button>
+                </div>
             </div>
+
+            {/* Add Book Modal */}
+            <AddBookModal 
+                isOpen={showAddModal}
+                onClose={() => setShowAddModal(false)}
+                onSuccess={handleBookAdded}
+            />
 
             <div className="bg-white p-6 rounded-lg shadow">
                 <h2 className="text-xl font-semibold mb-4">Your Books ({books.length})</h2>
@@ -57,7 +80,12 @@ const MyStock = () => {
                             <div key={book.id} className="border border-gray-200 p-4 rounded-md hover:shadow-md transition-shadow">
                                 <h3 className="font-semibold text-gray-900 mb-1">{book.title}</h3>
                                 {book.author && <p className="text-sm text-gray-600 mb-2">by {book.author}</p>}
-                                <p className="text-lg font-bold text-green-600 mb-1">${book.price}</p>
+                                <div className="mb-1">
+                                    <p className="text-lg font-bold text-green-600">₹{book.price}</p>
+                                    {book.is_for_rent && book.weekly_fee && (
+                                        <p className="text-sm text-blue-600">₹{book.weekly_fee}/week rental</p>
+                                    )}
+                                </div>
                                 <p className="text-sm text-gray-500 mb-2">stock: {book.stock}</p>
                                 {book.condition && (
                                     <p className="text-sm text-gray-500 mb-2">condition: {book.condition}</p>

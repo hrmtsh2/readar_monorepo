@@ -1,8 +1,8 @@
 // search books to buy or borrow
 // "buy/borrow" link on navbar leads to this page
 
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -19,21 +19,7 @@ const BookSearch = () => {
   });
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    // set user's city as default of user data available
-    if (user && user.city && filters.city === '') {
-      setFilters(prevFilters => ({
-        ...prevFilters,
-        city: user.city
-      }));
-    }
-  }, [user]);
-
-  useEffect(() => {
-    searchBooks();
-  }, []);
-
-  const searchBooks = async () => {
+  const searchBooks = useCallback(async () => {
     setLoading(true);
     try {
       // turns form values into url search params for querying
@@ -53,7 +39,21 @@ const BookSearch = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]);
+
+  useEffect(() => {
+    // set user's city as default of user data available
+    if (user && user.city && filters.city === '') {
+      setFilters(prevFilters => ({
+        ...prevFilters,
+        city: user.city
+      }));
+    }
+  }, [user, filters.city]);
+
+  useEffect(() => {
+    searchBooks();
+  }, [searchBooks]);
 
   const handleFilterChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -156,7 +156,12 @@ const BookSearch = () => {
               <h3 className="text-lg font-semibold text-gray-900 mb-2">{book.title}</h3>
               {book.description && <p className="text-gray-600 mb-2 text-sm">{book.description.substring(0, 100)}...</p>}
               <div className="flex justify-between items-center mb-4">
-                <span className="text-xl font-bold text-green-600">₹{book.price}</span>
+                <div className="flex flex-col">
+                  <span className="text-xl font-bold text-green-600">₹{book.price}</span>
+                  {book.is_for_rent && book.weekly_fee && (
+                    <span className="text-sm text-blue-600">₹{book.weekly_fee}/week rental</span>
+                  )}
+                </div>
                 <span className={`px-2 py-1 rounded text-xs ${
                   book.status === 'in_stock' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
                 }`}>
@@ -193,8 +198,8 @@ function ReserveButton({ book }) {
   const navigate = useNavigate();
 
   const handleReserve = () => {
-    // Navigate to mock payment page with book data
-    navigate('/mock-payment', { state: { book } });
+    // Use Razorpay payment for both sale and rent
+    navigate('/payment', { state: { book } });
   };
 
   return (

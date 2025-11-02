@@ -11,6 +11,7 @@ const PaymentPage = () => {
   const [reservationData, setReservationData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [reservationCreated, setReservationCreated] = useState(false);
 
   const bookData = location.state?.book;
 
@@ -19,8 +20,11 @@ const PaymentPage = () => {
       navigate('/search');
       return;
     }
-    createReservation();
-  }, [bookData]);
+    // Only create reservation once
+    if (!reservationCreated) {
+      createReservation();
+    }
+  }, [bookData, reservationCreated, navigate]);
 
   const createReservation = async () => {
     setLoading(true);
@@ -33,6 +37,7 @@ const PaymentPage = () => {
       });
       
       setReservationData(response.data);
+      setReservationCreated(true);
     } catch (error) {
       setError(error.response?.data?.detail || 'Failed to create reservation');
     } finally {

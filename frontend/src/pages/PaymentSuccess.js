@@ -1,26 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../utils/api';
 
 const PaymentSuccess = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   
   const [reservationDetails, setReservationDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const { reservationId, bookTitle } = location.state || {};
+  // Support both URL params (Payment Page) and state (Mock payment)
+  const reservationId = searchParams.get('reservation_id') || location.state?.reservationId;
 
-  useEffect(() => {
-    if (!reservationId) {
-      navigate('/search');
-      return;
-    }
-    fetchReservationDetails();
-  }, [reservationId]);
-
-  const fetchReservationDetails = async () => {
+  const fetchReservationDetails = useCallback(async () => {
     try {
       const response = await api.get(`/payments/reservation/${reservationId}`);
       setReservationDetails(response.data);
@@ -29,7 +23,36 @@ const PaymentSuccess = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [reservationId]);
+
+  const verifyPaymentPageAndFetch = useCallback(async () => {
+    try {
+      // Verify the payment page payment
+      await api.post(`/payments/payment-page/verify?reservation_id=${reservationId}`);
+      
+      // Then fetch reservation details
+      const response = await api.get(`/payments/reservation/${reservationId}`);
+      setReservationDetails(response.data);
+    } catch (error) {
+      setError('Failed to verify payment or fetch reservation details');
+    } finally {
+      setLoading(false);
+    }
+  }, [reservationId]);
+
+  useEffect(() => {
+    if (!reservationId) {
+      navigate('/search');
+      return;
+    }
+    
+    // If coming from Payment Page, verify payment first
+    if (searchParams.get('reservation_id')) {
+      verifyPaymentPageAndFetch();
+    } else {
+      fetchReservationDetails();
+    }
+  }, [reservationId, searchParams, navigate, verifyPaymentPageAndFetch, fetchReservationDetails]);
 
   if (loading) {
     return (
@@ -73,29 +96,42 @@ const PaymentSuccess = () => {
         <>
           <div className="bg-green-50 p-4 rounded-lg mb-6">
             <h3 className="text-lg font-semibold mb-2">Book Reserved</h3>
-            <p><strong>Title:</strong> {reservationDetails.book_title}</p>
-            <p><strong>Author:</strong> {reservationDetails.book_author}</p>
-            <p><strong>Advance Paid:</strong> ₹{reservationDetails.amount_paid}</p>
-            <p><strong>Remaining Amount:</strong> ₹{reservationDetails.remaining_amount}</p>
-            <p><strong>Reservation Valid Until:</strong> {new Date(reservationDetails.valid_until).toLocaleString()}</p>
+            <p><strong>Title:</strong> {reservationDetails.book?.title || 'N/A'}</p>
+            <p><strong>Author:</strong> {reservationDetails.book?.author || 'N/A'}</p>
+            <p><strong>Condition:</strong> {reservationDetails.book?.condition || 'N/A'}</p>
+            <p><strong>Advance Paid:</strong> ₹{reservationDetails.reservation_fee}</p>
+            <p><strong>Remaining Amount:</strong> ₹{(reservationDetails.book?.price - reservationDetails.reservation_fee).toFixed(2)}</p>
+            {reservationDetails.expires_at && (
+              <p><strong>Reservation Valid Until:</strong> {new Date(reservationDetails.expires_at).toLocaleString()}</p>
+            )}
           </div>
 
-          <div className="bg-blue-50 p-4 rounded-lg mb-6">
-            <h3 className="text-lg font-semibold mb-2">Seller Contact Details</h3>
-            <p><strong>Name:</strong> {reservationDetails.seller_name}</p>
-            <p><strong>Email:</strong> {reservationDetails.seller_email}</p>
-            {reservationDetails.seller_phone && (
-              <p><strong>Phone:</strong> {reservationDetails.seller_phone}</p>
-            )}
-            <p><strong>Book Location:</strong> {reservationDetails.book_location}</p>
-          </div>
+          {reservationDetails.seller_contact && (
+            <div className="bg-blue-50 p-4 rounded-lg mb-6">
+              <h3 className="text-lg font-semibold mb-2">Seller Contact Details</h3>
+              <p><strong>Name:</strong> {reservationDetails.seller_contact.name}</p>
+              <p><strong>Email:</strong> {reservationDetails.seller_contact.email}</p>
+              {reservationDetails.seller_contact.phone && (
+                <p><strong>Phone:</strong> {reservationDetails.seller_contact.phone}</p>
+              )}
+              {reservationDetails.seller_contact.address && (
+                <p><strong>Location:</strong> {reservationDetails.seller_contact.address}</p>
+              )}
+            </div>
+          )}
+
+          {!reservationDetails.seller_contact && (
+            <div className="bg-yellow-50 border border-yellow-300 p-4 rounded-lg mb-6">
+              <p className="text-yellow-800">Seller contact details will be available once the payment is confirmed.</p>
+            </div>
+          )}
 
           <div className="bg-yellow-50 border border-yellow-300 p-4 rounded-lg mb-6">
             <h4 className="font-semibold text-yellow-800">Next Steps:</h4>
             <ol className="text-sm text-yellow-700 mt-2 space-y-1 list-decimal list-inside">
               <li>Contact the seller using the details above</li>
               <li>Arrange a convenient time to pick up the book</li>
-              <li>Pay the remaining amount (₹{reservationDetails.remaining_amount}) to the seller during pickup</li>
+              <li>Pay the remaining amount (₹{(reservationDetails.book?.price - reservationDetails.reservation_fee).toFixed(2)}) to the seller during pickup</li>
               <li>The seller will mark the book as "collected" in their dashboard</li>
             </ol>
           </div>

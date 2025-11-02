@@ -34,6 +34,10 @@ class ReservationCreate(BaseModel):
     book_id: int
     advance_percentage: float = 20.0  # Default 20% advance
 
+class PaymentPageCreate(BaseModel):
+    book_id: int
+    payment_type: str = "purchase"  # "purchase" or "rental"
+
 class PaymentVerification(BaseModel):
     razorpay_order_id: str
     razorpay_payment_id: str
@@ -236,8 +240,9 @@ async def get_reservation_details(
             "description": book.description
         },
         "reservation_fee": reservation.reservation_fee,
-        "status": reservation.status,
-        "created_at": reservation.created_at
+        "status": reservation.status.value,
+        "created_at": reservation.created_at.isoformat() if reservation.created_at else None,
+        "expires_at": reservation.expires_at.isoformat() if reservation.expires_at else None
     }
     
     # Only show seller contact if payment is confirmed
@@ -448,3 +453,114 @@ async def mock_verify_payment(
     await db.commit()
     
     return {"status": "success", "message": "Mock payment verified successfully"}
+
+# Payment Page Integration for Model A (Book Purchases)
+@router.post("/payment-page/create")
+async def create_payment_page(
+    payment_data: PaymentPageCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Create a Razorpay Payment Page for full book purchase (Model A)"""
+    
+    # Get the book
+    result = await db.execute(select(Book).where(Book.id == payment_data.book_id))
+    book = result.scalar_one_or_none()
+    
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    
+    if book.status != BookStatus.IN_STOCK:
+        raise HTTPException(status_code=400, detail="Book is not available for purchase")
+    
+    if book.owner_id == current_user.id:
+        raise HTTPException(status_code=400, detail="You cannot buy your own book")
+    
+    # Create reservation record for tracking
+    reservation = Reservation(
+        book_id=book.id,
+        user_id=current_user.id,
+        advance_percentage=100.0,  # Full payment for purchases
+        reservation_fee=book.price,
+        status=ReservationStatus.PENDING,
+        expires_at=datetime.now() + timedelta(hours=24)
+    )
+    
+    db.add(reservation)
+    await db.flush()  # Get reservation ID
+    
+    # Create Payment record
+    payment = Payment(
+        reservation_id=reservation.id,
+        amount=book.price,
+        currency="INR",
+        status=PaymentStatus.PENDING,
+        gateway="razorpay"
+    )
+    
+    db.add(payment)
+    await db.commit()
+    
+    # Return Payment Page configuration
+    return {
+        "reservation_id": reservation.id,
+        "payment_page_url": f"https://razorpay.com/payment-button/{os.getenv('RAZORPAY_PAYMENT_BUTTON_ID', 'YOUR_BUTTON_ID')}",
+        "book_title": book.title,
+        "amount": book.price,
+        "currency": "INR",
+        "success_url": f"http://localhost:3000/payment-success?reservation_id={reservation.id}",
+        "cancel_url": "http://localhost:3000/payment-cancel"
+    }
+
+@router.post("/payment-page/verify")
+async def verify_payment_page_payment(
+    reservation_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Verify payment from Payment Page and complete purchase"""
+    
+    # Get reservation
+    result = await db.execute(
+        select(Reservation).where(Reservation.id == reservation_id)
+    )
+    reservation = result.scalar_one_or_none()
+    
+    if not reservation:
+        raise HTTPException(status_code=404, detail="Reservation not found")
+    
+    if reservation.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Update reservation status (in real implementation, verify with Razorpay webhook)
+    reservation.status = ReservationStatus.CONFIRMED
+    
+    # Update payment record
+    result = await db.execute(
+        select(Payment).where(Payment.reservation_id == reservation.id)
+    )
+    payment = result.scalar_one_or_none()
+    
+    if payment:
+        payment.status = PaymentStatus.PAID
+        payment.razorpay_payment_id = f"pay_{int(datetime.now().timestamp())}"
+    
+    # Update book status to reserved
+    result = await db.execute(select(Book).where(Book.id == reservation.book_id))
+    book = result.scalar_one_or_none()
+    
+    if book:
+        book.status = BookStatus.RESERVED
+    
+    await db.commit()
+    
+    return {
+        "status": "success",
+        "message": "Payment verified successfully",
+        "reservation_id": reservation.id,
+        "next_steps": [
+            "Contact the seller to arrange pickup",
+            "Collect the book within 24 hours",
+            "Confirm collection to release payment to seller"
+        ]
+    }

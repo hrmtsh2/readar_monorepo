@@ -9,7 +9,7 @@ from io import StringIO
 import openpyxl
 
 from database import get_db
-from models import Book, User, BookStatus, Transaction
+from models import Book, User, BookStatus, Transaction, Reservation
 from routers.auth import get_current_user
 from pydantic import BaseModel, ConfigDict
 
@@ -45,7 +45,7 @@ class BookCreate(BaseModel):
     status: BookStatus = BookStatus.IN_STOCK
     is_for_sale: bool = True
     is_for_rent: bool = False
-    rental_price_per_day: Optional[float] = None
+    weekly_fee: Optional[float] = None
     condition: Optional[str] = None
 
 class BookResponse(BaseModel):
@@ -62,7 +62,7 @@ class BookResponse(BaseModel):
     status: BookStatus
     is_for_sale: bool
     is_for_rent: bool
-    rental_price_per_day: Optional[float] = None
+    weekly_fee: Optional[float] = None
     condition: Optional[str] = None
     owner_id: int
 
@@ -79,7 +79,7 @@ class BookUpdate(BaseModel):
     status: Optional[BookStatus] = None
     is_for_sale: Optional[bool] = None
     is_for_rent: Optional[bool] = None
-    rental_price_per_day: Optional[float] = None
+    weekly_fee: Optional[float] = None
     condition: Optional[str] = None
 
 @router.post("/", response_model=BookResponse)
@@ -323,6 +323,102 @@ async def get_my_books(
     result = await db.execute(select(Book).filter(Book.owner_id == current_user.id))
     books = result.scalars().all()
     return books
+
+class ReservationInfo(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    reservation_id: int
+    buyer_id: int
+    buyer_name: str
+    buyer_email: str
+    reservation_fee: float
+    status: str
+    created_at: datetime
+
+class BookWithReservationResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    isbn: Optional[str] = None
+    title: str
+    author: Optional[str] = None
+    tags: Optional[str] = None
+    description: Optional[str] = None
+    price: float
+    stock: int
+    status: BookStatus
+    is_for_sale: bool
+    is_for_rent: bool
+    weekly_fee: Optional[float] = None
+    condition: Optional[str] = None
+    owner_id: int
+    created_at: Optional[datetime] = None
+    reservation: Optional[ReservationInfo] = None
+
+@router.get("/my/books/with-reservations", response_model=List[BookWithReservationResponse])
+async def get_my_books_with_reservations(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    # Get books owned by the current user with their reservations
+    result = await db.execute(
+        select(Book)
+        .filter(Book.owner_id == current_user.id)
+        .order_by(Book.created_at.desc())
+    )
+    books = result.scalars().all()
+    
+    books_with_reservations = []
+    for book in books:
+        # Get the most recent active reservation for this book
+        reservation_result = await db.execute(
+            select(Reservation)
+            .filter(Reservation.book_id == book.id)
+            .order_by(Reservation.created_at.desc())
+        )
+        reservation = reservation_result.scalars().first()  # Use first() instead of scalar_one_or_none()
+        
+        reservation_info = None
+        if reservation:
+            # Get buyer information
+            buyer_result = await db.execute(
+                select(User).filter(User.id == reservation.user_id)
+            )
+            buyer = buyer_result.scalar_one_or_none()
+            
+            if buyer:
+                reservation_info = ReservationInfo(
+                    reservation_id=reservation.id,
+                    buyer_id=buyer.id,
+                    buyer_name=f"{buyer.first_name} {buyer.last_name}",
+                    buyer_email=buyer.email,
+                    reservation_fee=reservation.reservation_fee,
+                    status=reservation.status.value,
+                    created_at=reservation.created_at
+                )
+        
+        book_dict = {
+            "id": book.id,
+            "isbn": book.isbn,
+            "title": book.title,
+            "author": book.author,
+            "tags": book.tags,
+            "description": book.description,
+            "price": book.price,
+            "stock": book.stock,
+            "status": book.status,
+            "is_for_sale": book.is_for_sale,
+            "is_for_rent": book.is_for_rent,
+            "weekly_fee": book.weekly_fee,
+            "condition": book.condition,
+            "owner_id": book.owner_id,
+            "created_at": book.created_at,
+            "reservation": reservation_info
+        }
+        books_with_reservations.append(book_dict)
+    
+    return books_with_reservations
+
 
 class TransactionResponse(BaseModel):
     id: int
