@@ -14,6 +14,7 @@ const PaymentPage = () => {
   const [reservationCreated, setReservationCreated] = useState(false);
 
   const bookData = location.state?.book;
+  const paymentType = location.state?.payment_type || 'purchase';
 
   useEffect(() => {
     if (!bookData) {
@@ -33,7 +34,8 @@ const PaymentPage = () => {
     try {
       const response = await api.post('/payments/reserve', {
         book_id: bookData.id,
-        advance_percentage: 20.0
+        advance_percentage: 20.0,
+        payment_type: paymentType
       });
       
       setReservationData(response.data);

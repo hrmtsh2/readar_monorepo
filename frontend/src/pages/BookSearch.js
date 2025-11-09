@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 const BookSearch = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [books, setBooks] = useState([]);
   const [filters, setFilters] = useState({
     q: '', // search query ("The God of Small Things Arundhati Roy Fiction...")
@@ -171,13 +172,16 @@ const BookSearch = () => {
               </div>
               <div className="flex space-x-2">
                     {book.is_for_sale && (
-                      <ReserveButton book={book} />
+                          <ReserveButton book={book} />
+                        )}
+                    {book.is_for_rent && book.weekly_fee && parseFloat(book.weekly_fee) > 0 && (
+                      <button
+                        className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded text-sm"
+                        onClick={() => navigate('/payment', { state: { book, payment_type: 'rental' } })}
+                      >
+                        rent
+                      </button>
                     )}
-                {book.is_for_rent && (
-                  <button className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded text-sm">
-                    rent
-                  </button>
-                )}
               </div>
             </div>
           ))}
@@ -207,7 +211,7 @@ function ReserveButton({ book }) {
       className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded text-sm text-center"
       onClick={handleReserve}
     >
-      Reserve & Pay
+  reserve & pay
     </button>
   );
 }

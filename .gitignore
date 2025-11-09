@@ -37,3 +37,7 @@ Thumbs.db
 
 # logs
 *.log
+
+# misc scripts and files
+backend/generate_sample_books_xlsx.py
+backend/sample_books.xlsx

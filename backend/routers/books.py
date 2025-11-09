@@ -7,6 +7,7 @@ import json
 from datetime import datetime
 from io import StringIO
 import openpyxl
+from io import BytesIO
 
 from database import get_db
 from models import Book, User, BookStatus, Transaction, Reservation
@@ -162,6 +163,75 @@ async def search_books(
     result = await db.execute(query)
     books = result.scalars().all()
     return books
+
+@router.get("/reservations")
+async def get_user_reservations(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get all reservations made by the current user"""
+    from models import Reservation, ReservationStatus
+    
+    query = select(
+        Reservation,
+        Book,
+        User.first_name.label("seller_first_name"),
+        User.last_name.label("seller_last_name"), 
+        User.email.label("seller_email"),
+        User.phone.label("seller_phone"),
+        User.city.label("seller_city"),
+        User.state.label("seller_state")
+    ).join(
+        Book, Reservation.book_id == Book.id
+    ).join(
+        User, Book.owner_id == User.id
+    ).where(
+        Reservation.user_id == current_user.id
+    ).order_by(Reservation.created_at.desc())
+    
+    result = await db.execute(query)
+    reservations_data = result.all()
+    
+    reservations = []
+    for reservation, book, seller_first_name, seller_last_name, seller_email, seller_phone, seller_city, seller_state in reservations_data:
+        # Create location string from seller's location
+        book_location = ""
+        if seller_city and seller_state:
+            book_location = f"{seller_city}, {seller_state}"
+        elif seller_city:
+            book_location = seller_city
+        elif seller_state:
+            book_location = seller_state
+        else:
+            book_location = "Location not specified"
+            
+        reservation_dict = {
+            "id": reservation.id,
+            "book_title": book.title,
+            "book_author": book.author or "Unknown",
+            "total_price": float(book.price),
+            "amount_paid": float(reservation.reservation_fee),
+            "remaining_amount": float(book.price - reservation.reservation_fee),
+            "status": reservation.status.value,
+            "created_at": reservation.created_at.isoformat() if reservation.created_at else None,
+            "valid_until": reservation.expires_at.isoformat() if reservation.expires_at else None,
+            "book_location": book_location
+        }
+        
+        # Only show seller contact if payment is confirmed
+        if reservation.status == ReservationStatus.CONFIRMED:
+            reservation_dict.update({
+                "seller_contact": True,
+                "seller_name": f"{seller_first_name} {seller_last_name}",
+                "seller_email": seller_email,
+                "seller_phone": seller_phone
+            })
+        else:
+            reservation_dict["seller_contact"] = False
+    
+        reservations.append(reservation_dict)
+    
+    return reservations
 
 @router.get("/{book_id}", response_model=BookResponse)
 async def get_book(book_id: int, db: AsyncSession = Depends(get_db)):
@@ -420,6 +490,87 @@ async def get_my_books_with_reservations(
     return books_with_reservations
 
 
+@router.post('/import-excel')
+async def import_books_from_excel(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Import books from an uploaded Excel file. Expected header columns:
+       title, author, price, stock, is_for_sale, is_for_rent, weekly_fee, condition, tags, description, isbn
+    """
+    content = await file.read()
+    try:
+        wb = openpyxl.load_workbook(filename=BytesIO(content), data_only=True)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to read Excel file: {e}")
+
+    sheet = wb.active
+    rows = list(sheet.iter_rows(values_only=True))
+    if not rows or len(rows) < 2:
+        raise HTTPException(status_code=400, detail="Excel file must contain a header row and at least one data row")
+
+    header = [str(h).strip().lower() if h is not None else '' for h in rows[0]]
+    # Map header names to indices
+    idx = {name: i for i, name in enumerate(header)}
+
+    created = 0
+    errors = []
+
+    for rnum, row in enumerate(rows[1:], start=2):
+        try:
+            title = row[idx.get('title')] if 'title' in idx else None
+            if not title:
+                raise ValueError('Missing title')
+
+            author = row[idx.get('author')] if 'author' in idx else None
+            price = row[idx.get('price')] if 'price' in idx else None
+            stock = row[idx.get('stock')] if 'stock' in idx else 1
+            is_for_sale = row[idx.get('is_for_sale')] if 'is_for_sale' in idx else True
+            is_for_rent = row[idx.get('is_for_rent')] if 'is_for_rent' in idx else False
+            weekly_fee = row[idx.get('weekly_fee')] if 'weekly_fee' in idx else None
+            condition = row[idx.get('condition')] if 'condition' in idx else None
+            tags = row[idx.get('tags')] if 'tags' in idx else None
+            description = row[idx.get('description')] if 'description' in idx else None
+            isbn = row[idx.get('isbn')] if 'isbn' in idx else None
+
+            # Basic parsing
+            try:
+                price = float(price)
+            except Exception:
+                raise ValueError('Invalid price')
+
+            try:
+                stock = int(stock)
+            except Exception:
+                stock = 1
+
+            book = Book(
+                isbn=str(isbn) if isbn is not None else None,
+                title=str(title),
+                author=str(author) if author is not None else None,
+                search_text=f"{title} {author or ''} {tags or ''} {description or ''}",
+                description=str(description) if description is not None else None,
+                tags=str(tags) if tags is not None else None,
+                price=price,
+                stock=stock,
+                owner_id=current_user.id,
+                is_for_sale=bool(is_for_sale),
+                is_for_rent=bool(is_for_rent),
+                weekly_fee=float(weekly_fee) if weekly_fee not in (None, '') else None,
+                condition=str(condition) if condition is not None else None,
+            )
+
+            db.add(book)
+            await db.commit()
+            await db.refresh(book)
+            created += 1
+        except Exception as e:
+            errors.append({'row': rnum, 'error': str(e)})
+
+    return {"created": created, "errors": errors}
+
+
 class TransactionResponse(BaseModel):
     id: int
     book_title: str
@@ -458,73 +609,3 @@ async def get_my_sales(
         }
         for transaction, book, buyer in sales
     ]
-
-
-@router.get("/reservations")
-async def get_user_reservations(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get all reservations made by the current user"""
-    from models import Reservation, ReservationStatus
-    
-    query = select(
-        Reservation,
-        Book,
-        User.first_name.label("seller_first_name"),
-        User.last_name.label("seller_last_name"), 
-        User.email.label("seller_email"),
-        User.phone.label("seller_phone"),
-        User.city.label("seller_city"),
-        User.state.label("seller_state")
-    ).join(
-        Book, Reservation.book_id == Book.id
-    ).join(
-        User, Book.owner_id == User.id
-    ).where(
-        Reservation.user_id == current_user.id
-    ).order_by(Reservation.created_at.desc())
-    
-    result = await db.execute(query)
-    reservations_data = result.all()
-    
-    reservations = []
-    for reservation, book, seller_first_name, seller_last_name, seller_email, seller_phone, seller_city, seller_state in reservations_data:
-        # Create location string from seller's location
-        book_location = ""
-        if seller_city and seller_state:
-            book_location = f"{seller_city}, {seller_state}"
-        elif seller_city:
-            book_location = seller_city
-        elif seller_state:
-            book_location = seller_state
-        else:
-            book_location = "Location not specified"
-            
-        reservation_dict = {
-            "id": reservation.id,
-            "book_title": book.title,
-            "book_author": book.author,
-            "total_price": float(book.price),
-            "amount_paid": float(reservation.reservation_fee),
-            "remaining_amount": float(book.price - reservation.reservation_fee),
-            "status": reservation.status.value,
-            "created_at": reservation.created_at.isoformat(),
-            "valid_until": reservation.expires_at.isoformat(),
-            "book_location": book_location
-        }
-        
-        # Only show seller contact if payment is confirmed
-        if reservation.status == ReservationStatus.CONFIRMED:
-            reservation_dict.update({
-                "seller_contact": True,
-                "seller_name": f"{seller_first_name} {seller_last_name}",
-                "seller_email": seller_email,
-                "seller_phone": seller_phone
-            })
-        else:
-            reservation_dict["seller_contact"] = False
-    
-        reservations.append(reservation_dict)
-    
-    return reservations

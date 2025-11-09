@@ -8,6 +8,8 @@ const MyStock = () => {
     const [books, setBooks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
+    const [importing, setImporting] = useState(false);
+    const fileInputRef = React.useRef(null);
 
     useEffect(() => {
         if (user) {
@@ -50,12 +52,47 @@ const MyStock = () => {
                         <h1 className="text-3xl font-bold text-gray-900">my stock</h1>
                         <p className="text-gray-600">manage your books available for sale and rent</p>
                     </div>
-                    <button
-                        onClick={() => setShowAddModal(true)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
-                    >
-                        add book
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => setShowAddModal(true)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+                        >
+                            add book
+                        </button>
+                        <button
+                            onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                            className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md transition-colors"
+                            disabled={importing}
+                        >
+                            {importing ? 'importing...' : 'import excel'}
+                        </button>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept=".xlsx,.xls"
+                            style={{ display: 'none' }}
+                            onChange={async (e) => {
+                                const f = e.target.files && e.target.files[0];
+                                if (!f) return;
+                                setImporting(true);
+                                try {
+                                    const form = new FormData();
+                                    form.append('file', f);
+                                    const res = await api.post('/books/import-excel', form, {
+                                        headers: { 'Content-Type': 'multipart/form-data' }
+                                    });
+                                    alert(`Imported ${res.data.created} books. ${res.data.errors.length} errors.`);
+                                    fetchMyBooks();
+                                } catch (err) {
+                                    console.error('Import error', err);
+                                    alert('Import failed: ' + (err?.response?.data?.detail || err.message));
+                                } finally {
+                                    setImporting(false);
+                                    e.target.value = null;
+                                }
+                            }}
+                        />
+                    </div>
                 </div>
             </div>
 

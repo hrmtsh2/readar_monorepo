@@ -33,6 +33,7 @@ else:
 class ReservationCreate(BaseModel):
     book_id: int
     advance_percentage: float = 20.0  # Default 20% advance
+    payment_type: str = "purchase"  # "purchase" or "rental"
 
 class PaymentPageCreate(BaseModel):
     book_id: int
@@ -76,8 +77,17 @@ async def create_reservation(
     if book.owner_id == current_user.id:
         raise HTTPException(status_code=400, detail="You cannot reserve your own book")
     
-    # Calculate advance amount (20% of book price)
-    advance_amount = (book.price * reservation_data.advance_percentage) / 100
+    # Calculate base amount depending on payment type (purchase vs rental)
+    if reservation_data.payment_type == 'rental':
+        # Ensure book has weekly_fee
+        if not book.is_for_rent or book.weekly_fee is None:
+            raise HTTPException(status_code=400, detail="Book is not available for rental")
+        base_amount = book.weekly_fee
+    else:
+        base_amount = book.price
+
+    # Calculate advance amount (percentage of base amount)
+    advance_amount = (base_amount * reservation_data.advance_percentage) / 100
     amount_in_paise = int(advance_amount * 100)  # Convert to paise
     
     # Create Razorpay order

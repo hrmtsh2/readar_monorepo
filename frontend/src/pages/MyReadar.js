@@ -37,10 +37,19 @@ const MyReadar = () => {
 
   const fetchMyReservations = async () => {
     try {
+      console.log('Fetching reservations...');
       const response = await api.get('/books/reservations');
+      console.log('Reservations response:', response.data);
       setMyReservations(response.data);
     } catch (error) {
-      console.error('failed to fetch reservations:', error);
+      console.error('Failed to fetch reservations:', error);
+      console.error('Error details:', error.response?.data);
+      console.error('Error detail array:', error.response?.data?.detail);
+      if (error.response?.data?.detail) {
+        error.response.data.detail.forEach((err, idx) => {
+          console.error(`Error ${idx}:`, err);
+        });
+      }
     }
   };
 
