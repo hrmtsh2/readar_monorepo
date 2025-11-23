@@ -12,13 +12,14 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="bg-white shadow">
+    <nav className="bg-[#f2efeb] shadow">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           {/*elements loaded regardless of auth state*/}
           <div className="flex items-center">
-            <Link to="/" className="flex-shrink-0">
-              <h1 className="text-xl font-bold text-gray-900">readar</h1>
+            <Link to="/" className="flex-shrink-0 inline-flex items-center h-16 overflow-hidden">
+              <img src="/logo-readar.png" alt="Readar" className="h-12 w-auto object-contain block" />
+              <span className="sr-only">Readar</span>
             </Link>
             <div className="ml-10 flex items-baseline space-x-4">
               <Link to="/search" className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
@@ -59,7 +60,7 @@ const Navbar = () => {
               </>
             ) : (
               <>
-                <Link to="/login" className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
+                <Link to="/login" className="text-blue-600 hover:text-blue-700 px-3 py-2 rounded-md text-sm font-medium">
                   login
                 </Link>
               </>

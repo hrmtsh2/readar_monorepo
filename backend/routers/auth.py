@@ -36,7 +36,7 @@ class UserCreate(BaseModel):
     state: str = None
     zip_code: str = None
 
-# user's response to 
+# format of response sent by server
 class UserResponse(BaseModel):
     id: int
     email: str

@@ -56,6 +56,11 @@ const BookSearch = () => {
     searchBooks();
   }, [searchBooks]);
 
+  // derive the actually displayed books after client-side filters
+  const displayedBooks = books
+    .filter(book => book.status !== 'reserved')
+    .filter(book => !(user && book.owner_id === user.id));
+
   const handleFilterChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFilters({
@@ -146,15 +151,25 @@ const BookSearch = () => {
       </div>
 
       {/*search results*/}
+      <div className="mb-4">
+        {loading ? (
+          <div className="h-4 w-28 bg-gray-200 rounded animate-pulse" />
+        ) : (
+          <div className="text-sm text-gray-700">{displayedBooks.length} {displayedBooks.length === 1 ? 'book' : 'books'} found</div>
+        )}
+      </div>
+
       {loading ? (
         <div className="text-center py-8">
           <div className="text-lg text-gray-600">searching...</div>
         </div>
       ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {books.filter(book => book.status !== 'reserved').map((book) => (
+        <>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {displayedBooks.map((book) => (
             <div key={book.id} className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-shadow">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">{book.title}</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">{book.title}</h3>
+              {book.author && <div className="text-sm text-gray-700 mb-2">by {book.author}</div>}
               {book.description && <p className="text-gray-600 mb-2 text-sm">{book.description.substring(0, 100)}...</p>}
               <div className="flex justify-between items-center mb-4">
                 <div className="flex flex-col">
@@ -179,16 +194,17 @@ const BookSearch = () => {
                         className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded text-sm"
                         onClick={() => navigate('/payment', { state: { book, payment_type: 'rental' } })}
                       >
-                        rent
+                        Rent
                       </button>
                     )}
               </div>
             </div>
           ))}
         </div>
+          </>
       )}
 
-      {books.length === 0 && !loading && (
+      {displayedBooks.length === 0 && !loading && (
         <div className="text-center py-8">
           <div className="text-lg text-gray-600">no books found. log in and try again.</div>
         </div>
@@ -211,7 +227,7 @@ function ReserveButton({ book }) {
       className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded text-sm text-center"
       onClick={handleReserve}
     >
-  reserve & pay
+  Reserve
     </button>
   );
 }

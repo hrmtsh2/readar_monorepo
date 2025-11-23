@@ -29,8 +29,7 @@ const MockPayment = () => {
     
     try {
       const response = await api.post('/payments/mock-reserve', {
-        book_id: bookData.id,
-        advance_percentage: 20.0
+        book_id: bookData.id
       });
       
       setReservationData(response.data);

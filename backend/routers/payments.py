@@ -22,8 +22,15 @@ from pydantic import BaseModel
 router = APIRouter()
 
 # Razorpay client initialization (only if available)
-RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "rzp_test_dummy")
-RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "dummy_secret")
+RAZORPAY_MODE = os.getenv("RAZORPAY_MODE", "test").lower()  # 'test' or 'live'
+
+# Support separate env vars for test vs live keys. Fall back to older generic names if present.
+if RAZORPAY_MODE == 'live':
+    RAZORPAY_KEY_ID = os.getenv("RAZORPAY_LIVE_KEY_ID") or os.getenv("RAZORPAY_KEY_ID")
+    RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_LIVE_KEY_SECRET") or os.getenv("RAZORPAY_KEY_SECRET")
+else:
+    RAZORPAY_KEY_ID = os.getenv("RAZORPAY_TEST_KEY_ID") or os.getenv("RAZORPAY_KEY_ID", "rzp_test_dummy")
+    RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_TEST_KEY_SECRET") or os.getenv("RAZORPAY_KEY_SECRET", "dummy_secret")
 
 if RAZORPAY_AVAILABLE:
     client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
@@ -32,7 +39,6 @@ else:
 
 class ReservationCreate(BaseModel):
     book_id: int
-    advance_percentage: float = 20.0  # Default 20% advance
     payment_type: str = "purchase"  # "purchase" or "rental"
 
 class PaymentPageCreate(BaseModel):
@@ -55,6 +61,7 @@ class ReservationResponse(BaseModel):
     currency: str
     book_title: str
     seller_contact: str = None  # Only shown after payment
+    live_mode: bool = False
 
 @router.post("/reserve", response_model=ReservationResponse)
 async def create_reservation(
@@ -77,17 +84,14 @@ async def create_reservation(
     if book.owner_id == current_user.id:
         raise HTTPException(status_code=400, detail="You cannot reserve your own book")
     
-    # Calculate base amount depending on payment type (purchase vs rental)
+    # Per product decision: the advance/reservation payment should be the full book price
+    # (regardless of the provided advance_percentage). Use book.price as the amount.
+    # Keep the rental availability check for rental payment_type.
     if reservation_data.payment_type == 'rental':
-        # Ensure book has weekly_fee
         if not book.is_for_rent or book.weekly_fee is None:
             raise HTTPException(status_code=400, detail="Book is not available for rental")
-        base_amount = book.weekly_fee
-    else:
-        base_amount = book.price
 
-    # Calculate advance amount (percentage of base amount)
-    advance_amount = (base_amount * reservation_data.advance_percentage) / 100
+    advance_amount = float(book.price)
     amount_in_paise = int(advance_amount * 100)  # Convert to paise
     
     # Create Razorpay order
@@ -142,7 +146,8 @@ async def create_reservation(
         key_id=RAZORPAY_KEY_ID,
         amount=amount_in_paise,
         currency="INR",
-        book_title=book.title
+        book_title=book.title,
+        live_mode=(RAZORPAY_MODE == 'live')
     )
 
 @router.post("/verify-payment")
@@ -372,8 +377,8 @@ async def create_mock_reservation(
     if book.owner_id == current_user.id:
         raise HTTPException(status_code=400, detail="You cannot reserve your own book")
     
-    # Calculate advance amount (20% of book price)
-    advance_amount = (book.price * reservation_data.advance_percentage) / 100
+    # Advance amount should be the full book price (mock flow)
+    advance_amount = float(book.price)
     
     # Create mock order ID
     mock_order_id = f"mock_order_{book.id}_{current_user.id}_{int(datetime.now().timestamp())}"

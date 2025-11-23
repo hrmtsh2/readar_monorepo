@@ -34,7 +34,6 @@ const PaymentPage = () => {
     try {
       const response = await api.post('/payments/reserve', {
         book_id: bookData.id,
-        advance_percentage: 20.0,
         payment_type: paymentType
       });
       
@@ -127,7 +126,14 @@ const PaymentPage = () => {
 
   return (
     <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6">
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">Complete Your Reservation</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-2xl font-bold text-gray-900">Complete Your Reservation</h2>
+        {reservationData.live_mode ? (
+          <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">LIVE MODE</span>
+        ) : (
+          <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">TEST MODE</span>
+        )}
+      </div>
       
       <div className="bg-gray-50 p-4 rounded-lg mb-6">
         <h3 className="text-lg font-semibold mb-2">Book Details</h3>
@@ -138,10 +144,10 @@ const PaymentPage = () => {
 
       <div className="bg-blue-50 p-4 rounded-lg mb-6">
         <h3 className="text-lg font-semibold mb-2">Payment Details</h3>
-        <p><strong>Advance Payment (20%):</strong> ₹{reservationData.reservation_fee}</p>
+        <p><strong>Amount Paid (full price):</strong> ₹{reservationData.reservation_fee}</p>
         <p><strong>Remaining Amount:</strong> ₹{(bookData.price - reservationData.reservation_fee).toFixed(2)}</p>
         <p className="text-sm text-gray-600 mt-2">
-          Pay the remaining amount directly to the seller when collecting the book.
+          Pay the remaining amount directly to the seller when collecting the book (if any).
         </p>
       </div>
 

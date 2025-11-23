@@ -15,6 +15,8 @@ const AddBookModal = ({ isOpen, onClose, onSuccess }) => {
         weekly_fee: ""
     });
     const [submitting, setSubmitting] = useState(false);
+    const [potentialMatch, setPotentialMatch] = useState(null);
+    const [checkingMatch, setCheckingMatch] = useState(false);
 
     const handleInputChange = (e) => {
         const { name, value, type, checked } = e.target;
@@ -24,11 +26,55 @@ const AddBookModal = ({ isOpen, onClose, onSuccess }) => {
         }));
     };
 
+    const normalize = (s) => s ? s.toString().toLowerCase().replace(/[^a-z0-9\s]/g, '').trim() : '';
+
+    const jaccardSimilarity = (a, b) => {
+        const A = new Set(a.split(/\s+/).filter(Boolean));
+        const B = new Set(b.split(/\s+/).filter(Boolean));
+        if (A.size === 0 && B.size === 0) return 1;
+        const inter = [...A].filter(x => B.has(x)).length;
+        const union = new Set([...A, ...B]).size;
+        return union === 0 ? 0 : inter / union;
+    };
+
+    const findBestMatch = (title, books) => {
+        const nTitle = normalize(title);
+        let best = null;
+        let bestScore = 0;
+        for (const b of books) {
+            const n = normalize(b.title || '');
+            if (!n) continue;
+            const score = jaccardSimilarity(nTitle, n);
+            if (score > bestScore) {
+                bestScore = score;
+                best = { book: b, score };
+            }
+        }
+        return { best, bestScore };
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setSubmitting(true);
+        setPotentialMatch(null);
 
         try {
+            // First, fetch current user's books to compare titles
+            setCheckingMatch(true);
+            const resp = await api.get('/books/my/books');
+            const myBooks = resp.data || [];
+            const { best, bestScore } = findBestMatch(newBook.title || '', myBooks);
+            setCheckingMatch(false);
+
+            // threshold for similarity — tuned conservatively
+            if (best && best.score >= 0.6) {
+                // prompt the user with the potential match
+                setPotentialMatch({ existing: best.book, score: best.score });
+                setSubmitting(false);
+                return; // wait for user decision
+            }
+
+            // No strong match — create a new book
             const bookData = {
                 ...newBook,
                 price: parseFloat(newBook.price),
@@ -39,8 +85,7 @@ const AddBookModal = ({ isOpen, onClose, onSuccess }) => {
             };
 
             await api.post('/books/', bookData);
-            
-            // Reset form
+            // Reset and close
             setNewBook({
                 title: "",
                 author: "",
@@ -53,17 +98,83 @@ const AddBookModal = ({ isOpen, onClose, onSuccess }) => {
                 is_for_rent: false,
                 weekly_fee: ""
             });
-
-            // Call success callback
-            if (onSuccess) {
-                onSuccess();
-            }
-            
-            // Close modal
+            if (onSuccess) onSuccess();
             onClose();
         } catch (error) {
             console.error('error adding book:', error);
             alert('failed to add book. please try again.');
+        } finally {
+            setSubmitting(false);
+            setCheckingMatch(false);
+        }
+    };
+
+    const handleMergeToExisting = async () => {
+        if (!potentialMatch || !potentialMatch.existing) return;
+        setSubmitting(true);
+        try {
+            const existing = potentialMatch.existing;
+            const addCount = parseInt(newBook.stock) || 1;
+            const newStock = (existing.stock || 0) + addCount;
+            // Only update stock — keep other fields as-is. Frontend could offer more options later.
+            const update = { stock: newStock };
+            await api.put(`/books/${existing.id}`, update);
+            // success
+            setPotentialMatch(null);
+            setNewBook({
+                title: "",
+                author: "",
+                tags: "",
+                description: "",
+                price: "",
+                stock: "1",
+                condition: "",
+                is_for_sale: true,
+                is_for_rent: false,
+                weekly_fee: ""
+            });
+            if (onSuccess) onSuccess();
+            onClose();
+        } catch (err) {
+            console.error('merge failed', err);
+            alert('Failed to merge into existing book. Please try again.');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleCreateNewAfterMatch = async () => {
+        // user chose to still create a new entry despite match
+        setSubmitting(true);
+        try {
+            const bookData = {
+                ...newBook,
+                price: parseFloat(newBook.price),
+                stock: parseInt(newBook.stock),
+                weekly_fee: newBook.weekly_fee 
+                    ? parseFloat(newBook.weekly_fee) 
+                    : null
+            };
+
+            await api.post('/books/', bookData);
+            setPotentialMatch(null);
+            setNewBook({
+                title: "",
+                author: "",
+                tags: "",
+                description: "",
+                price: "",
+                stock: "1",
+                condition: "",
+                is_for_sale: true,
+                is_for_rent: false,
+                weekly_fee: ""
+            });
+            if (onSuccess) onSuccess();
+            onClose();
+        } catch (err) {
+            console.error('create new failed', err);
+            alert('Failed to create book. Please try again.');
         } finally {
             setSubmitting(false);
         }
@@ -87,6 +198,43 @@ const AddBookModal = ({ isOpen, onClose, onSuccess }) => {
                         </button>
                     </div>
                     
+                    {potentialMatch ? (
+                        <div className="mb-4 p-4 border border-yellow-300 bg-yellow-50 rounded">
+                            <h4 className="font-medium text-yellow-800">Similar book found in your stock</h4>
+                            <p className="text-sm text-gray-700 mt-2">We found a close match in your books:</p>
+                            <div className="mt-2 p-3 bg-white rounded border">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <div className="font-semibold">{potentialMatch.existing.title}</div>
+                                        <div className="text-sm text-gray-600">{potentialMatch.existing.author || '-'}</div>
+                                        <div className="text-sm text-gray-600">stock: {potentialMatch.existing.stock || 0}</div>
+                                    </div>
+                                    <div className="text-sm text-gray-500">similarity: {(potentialMatch.score || 0).toFixed(2)}</div>
+                                </div>
+                            </div>
+                            <div className="mt-3 flex gap-2 justify-end">
+                                <button
+                                    onClick={() => { setPotentialMatch(null); }}
+                                    className="px-3 py-1 bg-gray-200 rounded"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleCreateNewAfterMatch}
+                                    className="px-3 py-1 bg-blue-600 text-white rounded"
+                                >
+                                    Create separate entry
+                                </button>
+                                <button
+                                    onClick={handleMergeToExisting}
+                                    className="px-3 py-1 bg-green-600 text-white rounded"
+                                >
+                                    Add stock to existing
+                                </button>
+                            </div>
+                        </div>
+                    ) : null}
+
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="grid md:grid-cols-2 gap-4">
                             <div>

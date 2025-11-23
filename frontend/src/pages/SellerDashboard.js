@@ -149,7 +149,7 @@ const SellerDashboard = () => {
                       )}
                     </div>
                     <div>
-                      <p><strong>Advance Paid:</strong> ₹{reservation.amount_paid}</p>
+                      <p><strong>Amount Paid:</strong> ₹{reservation.amount_paid}</p>
                       <p><strong>Remaining:</strong> ₹{reservation.remaining_amount}</p>
                       <p><strong>Total Price:</strong> ₹{reservation.total_price}</p>
                     </div>
@@ -197,8 +197,8 @@ const SellerDashboard = () => {
 
               {reservation.status === 'ACTIVE' && reservation.payment_status === 'PAID' && (
                 <div className="mt-4 p-3 bg-yellow-50 border border-yellow-300 rounded">
-                  <p className="text-sm text-yellow-800">
-                    <strong>Action Required:</strong> The buyer has paid the advance amount. 
+                    <p className="text-sm text-yellow-800">
+                    <strong>Action Required:</strong> The buyer has paid the amount. 
                     Please coordinate with them for book pickup and collect the remaining amount (₹{reservation.remaining_amount}) 
                     in person. Once the book is handed over, click "Mark as Collected" above.
                   </p>

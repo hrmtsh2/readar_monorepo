@@ -89,7 +89,7 @@ const PaymentSuccess = () => {
           </svg>
         </div>
         <h2 className="text-2xl font-bold text-green-800">Payment Successful!</h2>
-        <p className="text-gray-600 mt-2">Your advance payment has been processed successfully.</p>
+        <p className="text-gray-600 mt-2">Your payment has been processed successfully.</p>
       </div>
 
       {reservationDetails && (
@@ -99,7 +99,7 @@ const PaymentSuccess = () => {
             <p><strong>Title:</strong> {reservationDetails.book?.title || 'N/A'}</p>
             <p><strong>Author:</strong> {reservationDetails.book?.author || 'N/A'}</p>
             <p><strong>Condition:</strong> {reservationDetails.book?.condition || 'N/A'}</p>
-            <p><strong>Advance Paid:</strong> ₹{reservationDetails.reservation_fee}</p>
+            <p><strong>Amount Paid:</strong> ₹{reservationDetails.reservation_fee}</p>
             <p><strong>Remaining Amount:</strong> ₹{(reservationDetails.book?.price - reservationDetails.reservation_fee).toFixed(2)}</p>
             {reservationDetails.expires_at && (
               <p><strong>Reservation Valid Until:</strong> {new Date(reservationDetails.expires_at).toLocaleString()}</p>
@@ -131,7 +131,7 @@ const PaymentSuccess = () => {
             <ol className="text-sm text-yellow-700 mt-2 space-y-1 list-decimal list-inside">
               <li>Contact the seller using the details above</li>
               <li>Arrange a convenient time to pick up the book</li>
-              <li>Pay the remaining amount (₹{(reservationDetails.book?.price - reservationDetails.reservation_fee).toFixed(2)}) to the seller during pickup</li>
+              <li>Pay the remaining amount (₹{(reservationDetails.book?.price - reservationDetails.reservation_fee).toFixed(2) || '0.00'}) to the seller during pickup (if any)</li>
               <li>The seller will mark the book as "collected" in their dashboard</li>
             </ol>
           </div>
@@ -140,7 +140,7 @@ const PaymentSuccess = () => {
             <h4 className="font-semibold text-gray-800">Important Notes:</h4>
             <ul className="text-sm text-gray-700 mt-2 space-y-1">
               <li>• Your reservation is valid for 24 hours from the time of payment</li>
-              <li>• If you don't collect the book within this time, your advance payment will be refunded</li>
+              <li>• If you don't collect the book within this time, your payment will be refunded</li>
               <li>• Please be respectful when contacting the seller</li>
               <li>• Inspect the book condition before making the final payment</li>
             </ul>

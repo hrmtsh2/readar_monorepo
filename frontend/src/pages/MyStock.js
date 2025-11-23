@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../utils/api";
 import AddBookModal from "../components/AddBookModal";
+import ImportErrorsModal from "../components/ImportErrorsModal";
+import ImportMatchesModal from "../components/ImportMatchesModal";
 
 const MyStock = () => {
     const { user } = useAuth();
@@ -9,6 +11,10 @@ const MyStock = () => {
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
     const [importing, setImporting] = useState(false);
+    const [showImportErrors, setShowImportErrors] = useState(false);
+    const [importErrors, setImportErrors] = useState([]);
+    const [showImportMatches, setShowImportMatches] = useState(false);
+    const [importMatches, setImportMatches] = useState([]);
     const fileInputRef = React.useRef(null);
 
     useEffect(() => {
@@ -81,7 +87,20 @@ const MyStock = () => {
                                     const res = await api.post('/books/import-excel', form, {
                                         headers: { 'Content-Type': 'multipart/form-data' }
                                     });
-                                    alert(`Imported ${res.data.created} books. ${res.data.errors.length} errors.`);
+                                    const created = res.data?.created ?? res.data?.imported ?? 0;
+                                    const errors = res.data?.errors ?? [];
+                                    const matches = res.data?.matches ?? [];
+                                    if (errors && errors.length > 0) {
+                                        setImportErrors(errors);
+                                        setShowImportErrors(true);
+                                    }
+                                    if (matches && matches.length > 0) {
+                                        setImportMatches(matches);
+                                        setShowImportMatches(true);
+                                    }
+                                    if ((!errors || errors.length === 0) && (!matches || matches.length === 0)) {
+                                        alert(`Imported ${created} books successfully.`);
+                                    }
                                     fetchMyBooks();
                                 } catch (err) {
                                     console.error('Import error', err);
@@ -101,6 +120,53 @@ const MyStock = () => {
                 isOpen={showAddModal}
                 onClose={() => setShowAddModal(false)}
                 onSuccess={handleBookAdded}
+            />
+            <ImportErrorsModal
+                isOpen={showImportErrors}
+                onClose={() => { setShowImportErrors(false); setImportErrors([]); }}
+                errors={importErrors}
+            />
+            <ImportMatchesModal
+                isOpen={showImportMatches}
+                onClose={() => { setShowImportMatches(false); setImportMatches([]); fetchMyBooks(); }}
+                matches={importMatches}
+                onMerge={async (m) => {
+                    // merge stock: call PUT /books/{id} with new stock
+                    try {
+                        const existing = m.suggested;
+                        const add = parseInt(m.row_data?.stock || 1) || 1;
+                        const newStock = (existing.stock || 0) + add;
+                        await api.put(`/books/${existing.id}`, { stock: newStock });
+                        // remove this match from list
+                        setImportMatches(prev => prev.filter(x => x.row !== m.row));
+                    } catch (err) {
+                        console.error('merge failed', err);
+                        alert('Failed to merge stock: ' + (err?.response?.data?.detail || err.message));
+                    }
+                }}
+                onCreate={async (m) => {
+                    try {
+                        const rd = m.row_data || {};
+                        const payload = {
+                            title: m.title,
+                            author: rd.author || null,
+                            price: rd.price,
+                            stock: rd.stock || 1,
+                            is_for_sale: rd.is_for_sale ?? true,
+                            is_for_rent: rd.is_for_rent ?? false,
+                            weekly_fee: rd.weekly_fee ?? null,
+                            condition: rd.condition ?? null,
+                            tags: rd.tags ?? null,
+                            description: rd.description ?? null,
+                            isbn: rd.isbn ?? null
+                        };
+                        await api.post('/books/', payload);
+                        setImportMatches(prev => prev.filter(x => x.row !== m.row));
+                    } catch (err) {
+                        console.error('create failed', err);
+                        alert('Failed to create book: ' + (err?.response?.data?.detail || err.message));
+                    }
+                }}
             />
 
             <div className="bg-white p-6 rounded-lg shadow">

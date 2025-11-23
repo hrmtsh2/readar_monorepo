@@ -282,7 +282,7 @@ const MyReadar = () => {
                         <h3 className="font-semibold text-lg">{reservation.book_title}</h3>
                         <p className="text-gray-600">by {reservation.book_author}</p>
                         <p className="text-sm text-gray-500 mt-2">
-                          Advance Paid: ₹{reservation.amount_paid} | 
+                          Amount Paid: ₹{reservation.amount_paid} | 
                           Remaining: ₹{reservation.remaining_amount}
                         </p>
                         <p className="text-sm text-gray-500">

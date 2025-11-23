@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, or_, select
 from typing import List, Optional
@@ -11,10 +11,32 @@ from io import BytesIO
 
 from database import get_db
 from models import Book, User, BookStatus, Transaction, Reservation
-from routers.auth import get_current_user
+from routers.auth import get_current_user, SECRET_KEY, ALGORITHM
+from jose import jwt
 from pydantic import BaseModel, ConfigDict
 
 router = APIRouter()
+
+
+async def get_optional_current_user(authorization: Optional[str] = Header(None), db: AsyncSession = Depends(get_db)) -> Optional[User]:
+    """Return current user if Authorization Bearer token present and valid, otherwise None."""
+    if not authorization:
+        return None
+    parts = authorization.split()
+    if len(parts) != 2:
+        return None
+    scheme, token = parts
+    if scheme.lower() != 'bearer':
+        return None
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email = payload.get('sub')
+        if not email:
+            return None
+    except Exception:
+        return None
+    result = await db.execute(select(User).where(User.email == email))
+    return result.scalar_one_or_none()
 
 @router.post("/reserve/{book_id}")
 async def reserve_book(
@@ -120,7 +142,8 @@ async def search_books(
     for_rent: bool = None,
     skip: int = 0,
     limit: int = 100,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_current_user)
 ):
     query = select(Book).join(User)
     
@@ -155,6 +178,10 @@ async def search_books(
     
     if for_rent is not None:
         filters.append(Book.is_for_rent == for_rent)
+
+    # Exclude books uploaded by current user when available
+    if current_user:
+        filters.append(Book.owner_id != current_user.id)
     
     if filters:
         query = query.where(and_(*filters))
@@ -294,6 +321,7 @@ async def import_books(
     
     try:
         books_created = 0
+        errors = []
         
         if file.filename.endswith('.csv'):
             # handle csv files
@@ -310,28 +338,54 @@ async def import_books(
                 )
             
             for row in csv_reader:
-                book_data = {
-                    'title': row['title'],
-                    'author': row['author'],
-                    'price': float(row['price']),
-                    'owner_id': current_user.id
-                }
-                
-                # optional fields
-                if 'isbn' in row and row['isbn']:
-                    book_data['isbn'] = str(row['isbn'])
-                if 'tags' in row and row['tags']:
-                    book_data['tags'] = row['tags']  # Should be comma-separated
-                if 'description' in row and row['description']:
-                    book_data['description'] = row['description']
-                if 'stock' in row and row['stock']:
-                    book_data['stock'] = int(row['stock'])
-                if 'condition' in row and row['condition']:
-                    book_data['condition'] = row['condition']
-                
-                db_book = Book(**book_data)
-                db.add(db_book)
-                books_created += 1
+                row_num = csv_reader.line_num
+                try:
+                    # Validate required fields
+                    title = row.get('title')
+                    author = row.get('author')
+                    price_raw = row.get('price')
+                    if not title:
+                        raise ValueError('missing title')
+                    if not author:
+                        raise ValueError('missing author')
+                    if price_raw in (None, ''):
+                        raise ValueError('missing price')
+                    try:
+                        price = float(price_raw)
+                    except Exception:
+                        raise ValueError(f'invalid price: {price_raw}')
+
+                    book_data = {
+                        'title': title,
+                        'author': author,
+                        'price': price,
+                        'owner_id': current_user.id
+                    }
+
+                    # optional fields
+                    if 'isbn' in row and row['isbn']:
+                        book_data['isbn'] = str(row['isbn'])
+                    if 'tags' in row and row['tags']:
+                        book_data['tags'] = row['tags']  # Should be comma-separated
+                    if 'description' in row and row['description']:
+                        book_data['description'] = row['description']
+                    if 'stock' in row and row['stock']:
+                        try:
+                            book_data['stock'] = int(row['stock'])
+                        except Exception:
+                            raise ValueError(f'invalid stock: {row.get("stock")}')
+                    if 'condition' in row and row['condition']:
+                        book_data['condition'] = row['condition']
+
+                    db_book = Book(**book_data)
+                    db.add(db_book)
+                    books_created += 1
+                except Exception as row_err:
+                    errors.append({
+                        'row': row_num,
+                        'title': row.get('title') if row is not None else None,
+                        'message': str(row_err)
+                    })
         
         else:
             # handle xlsx files
@@ -352,37 +406,69 @@ async def import_books(
             # create column index mapping
             col_indices = {header: idx for idx, header in enumerate(headers)}
             
-            for row in ws.iter_rows(min_row=2, values_only=True):
-                if not row[col_indices['title']]:  # skip empty rows
+            for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+                # skip completely empty rows
+                if not any(cell is not None and str(cell).strip() != '' for cell in row):
                     continue
-                    
-                book_data = {
-                    'title': row[col_indices['title']],
-                    'author': row[col_indices['author']],
-                    'price': float(row[col_indices['price']]),
-                    'owner_id': current_user.id
-                }
-                
-                # optional fields
-                if 'isbn' in col_indices and row[col_indices['isbn']]:
-                    book_data['isbn'] = str(row[col_indices['isbn']])
-                if 'tags' in col_indices and row[col_indices['tags']]:
-                    book_data['tags'] = row[col_indices['tags']]  # Should be comma-separated
-                if 'description' in col_indices and row[col_indices['description']]:
-                    book_data['description'] = row[col_indices['description']]
-                if 'stock' in col_indices and row[col_indices['stock']]:
-                    book_data['stock'] = int(row[col_indices['stock']])
-                if 'condition' in col_indices and row[col_indices['condition']]:
-                    book_data['condition'] = row[col_indices['condition']]
-                
-                db_book = Book(**book_data)
-                db.add(db_book)
-                books_created += 1
+                try:
+                    # Validate required fields
+                    title = row[col_indices['title']] if 'title' in col_indices else None
+                    author = row[col_indices['author']] if 'author' in col_indices else None
+                    price_cell = row[col_indices['price']] if 'price' in col_indices else None
+                    if not title:
+                        raise ValueError('missing title')
+                    if not author:
+                        raise ValueError('missing author')
+                    if price_cell in (None, ''):
+                        raise ValueError('missing price')
+                    try:
+                        price = float(price_cell)
+                    except Exception:
+                        raise ValueError(f'invalid price: {price_cell}')
+
+                    book_data = {
+                        'title': title,
+                        'author': author,
+                        'price': price,
+                        'owner_id': current_user.id
+                    }
+
+                    # optional fields
+                    if 'isbn' in col_indices and row[col_indices['isbn']]:
+                        book_data['isbn'] = str(row[col_indices['isbn']])
+                    if 'tags' in col_indices and row[col_indices['tags']]:
+                        book_data['tags'] = row[col_indices['tags']]  # Should be comma-separated
+                    if 'description' in col_indices and row[col_indices['description']]:
+                        book_data['description'] = row[col_indices['description']]
+                    if 'stock' in col_indices and row[col_indices['stock']]:
+                        try:
+                            book_data['stock'] = int(row[col_indices['stock']])
+                        except Exception:
+                            raise ValueError(f'invalid stock: {row[col_indices["stock"]]}')
+                    if 'condition' in col_indices and row[col_indices['condition']]:
+                        book_data['condition'] = row[col_indices['condition']]
+
+                    db_book = Book(**book_data)
+                    db.add(db_book)
+                    books_created += 1
+                except Exception as row_err:
+                    errors.append({
+                        'row': row_idx,
+                        'title': row[col_indices['title']] if 'title' in col_indices else None,
+                        'message': str(row_err)
+                    })
         
         await db.commit()
-        return {"message": f"imported {books_created} books successfully"}
+        result = {"imported": books_created}
+        if errors:
+            result['errors'] = errors
+            result['message'] = f"imported {books_created} books, {len(errors)} errors"
+        else:
+            result['message'] = f"imported {books_created} books successfully"
+        return result
     
     except Exception as e:
+        # If we already have structured errors, return them; otherwise provide the exception message
         raise HTTPException(status_code=400, detail=f"import failed: {str(e)}")
 
 @router.get("/my/books", response_model=List[BookResponse])
@@ -516,6 +602,23 @@ async def import_books_from_excel(
 
     created = 0
     errors = []
+    matches = []
+
+    # load current user's existing books for matching
+    existing_books_result = await db.execute(select(Book).where(Book.owner_id == current_user.id))
+    existing_books = existing_books_result.scalars().all()
+
+    def normalize_title(s):
+        return (str(s).lower().replace('\n',' ').replace('\r',' ')).strip()
+
+    def jaccard(a, b):
+        A = set(a.split())
+        B = set(b.split())
+        if not A or not B:
+            return 0.0
+        inter = len(A & B)
+        union = len(A | B)
+        return inter / union if union else 0.0
 
     for rnum, row in enumerate(rows[1:], start=2):
         try:
@@ -545,30 +648,66 @@ async def import_books_from_excel(
             except Exception:
                 stock = 1
 
-            book = Book(
-                isbn=str(isbn) if isbn is not None else None,
-                title=str(title),
-                author=str(author) if author is not None else None,
-                search_text=f"{title} {author or ''} {tags or ''} {description or ''}",
-                description=str(description) if description is not None else None,
-                tags=str(tags) if tags is not None else None,
-                price=price,
-                stock=stock,
-                owner_id=current_user.id,
-                is_for_sale=bool(is_for_sale),
-                is_for_rent=bool(is_for_rent),
-                weekly_fee=float(weekly_fee) if weekly_fee not in (None, '') else None,
-                condition=str(condition) if condition is not None else None,
-            )
+            # Check for similar existing book titles (basic Jaccard on normalized words)
+            norm_title = normalize_title(title)
+            best = None
+            best_score = 0.0
+            for eb in existing_books:
+                eb_title = normalize_title(eb.title or '')
+                score = jaccard(norm_title, eb_title)
+                if score > best_score:
+                    best_score = score
+                    best = eb
 
-            db.add(book)
-            await db.commit()
-            await db.refresh(book)
-            created += 1
+            # threshold for suggesting a match
+            if best and best_score >= 0.6:
+                matches.append({
+                    'row': rnum,
+                    'title': str(title),
+                    'suggested': {
+                        'id': best.id,
+                        'title': best.title,
+                        'author': best.author,
+                        'stock': best.stock,
+                        'score': round(best_score, 2)
+                    },
+                    'row_data': {
+                        'price': price,
+                        'stock': stock,
+                        'is_for_sale': bool(is_for_sale),
+                        'is_for_rent': bool(is_for_rent),
+                        'weekly_fee': float(weekly_fee) if weekly_fee not in (None, '') else None,
+                        'condition': condition,
+                        'tags': tags,
+                        'description': description,
+                        'isbn': isbn
+                    }
+                })
+            else:
+                book = Book(
+                    isbn=str(isbn) if isbn is not None else None,
+                    title=str(title),
+                    author=str(author) if author is not None else None,
+                    search_text=f"{title} {author or ''} {tags or ''} {description or ''}",
+                    description=str(description) if description is not None else None,
+                    tags=str(tags) if tags is not None else None,
+                    price=price,
+                    stock=stock,
+                    owner_id=current_user.id,
+                    is_for_sale=bool(is_for_sale),
+                    is_for_rent=bool(is_for_rent),
+                    weekly_fee=float(weekly_fee) if weekly_fee not in (None, '') else None,
+                    condition=str(condition) if condition is not None else None,
+                )
+
+                db.add(book)
+                await db.commit()
+                await db.refresh(book)
+                created += 1
         except Exception as e:
             errors.append({'row': rnum, 'error': str(e)})
 
-    return {"created": created, "errors": errors}
+    return {"created": created, "matches": matches, "errors": errors}
 
 
 class TransactionResponse(BaseModel):

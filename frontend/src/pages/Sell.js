@@ -168,6 +168,12 @@ const Sell = () => {
                             <thead className="bg-gray-50">
                                 <tr>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        S/N
+                                    </th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        ID
+                                    </th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                         title
                                     </th>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -206,8 +212,14 @@ const Sell = () => {
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
-                                {userBooks.map((book) => (
+                                {userBooks.map((book, idx) => (
                                     <tr key={book.id} className="hover:bg-gray-50">
+                                        <td className="px-4 py-4 text-sm text-gray-900">
+                                            {idx + 1}
+                                        </td>
+                                        <td className="px-4 py-4 text-sm text-gray-900">
+                                            {book.id}
+                                        </td>
                                         <td className="px-4 py-4 text-sm font-medium text-gray-900">
                                             {book.title}
                                         </td>
