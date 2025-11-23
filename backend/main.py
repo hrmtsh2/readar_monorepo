@@ -8,6 +8,7 @@ from routers.users import router as users_router
 from routers.charity import router as charity_router
 from routers.books import router as books_router
 from routers.payments import router as payments_router
+from database import engine, Base
 
 load_dotenv()
 
@@ -45,6 +46,20 @@ async def root():
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.on_event("startup")
+async def create_db_tables_if_missing():
+    """Ensure DB tables exist on startup. This is a fallback for deployments
+    (e.g., SQLite on Render) where migrations may not have been run yet.
+    Prefer running Alembic migrations (`alembic upgrade head`) in production.
+    """
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    except Exception as e:
+        # Log error but don't crash startup so that the app can still surface errors
+        print(f"Warning: failed to auto-create tables on startup: {e}")
 
 
 

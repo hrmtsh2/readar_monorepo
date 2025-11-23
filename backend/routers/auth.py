@@ -15,6 +15,10 @@ from pydantic import BaseModel, EmailStr
 load_dotenv()
 
 SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    # Fallback for development or missing env; in production set a strong secret via env vars.
+    SECRET_KEY = "dev-secret-change-me"
+    print("Warning: SECRET_KEY not set in environment; using insecure development fallback secret.")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
