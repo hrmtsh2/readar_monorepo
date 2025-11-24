@@ -25,15 +25,15 @@ const Home = () => {
         <div className="grid md:grid-cols-3 gap-6 mb-12">
           <div className="bg-white p-6 rounded-lg shadow">
             <h3 className="text-lg font-semibold mb-3">for buyers & borrowers</h3>
-            <p className="text-gray-600">find books at competitive prices, reserve for pickup, join auctions</p>
+            <p className="text-gray-600">find books at competitive prices, reserve for pickup, join auctions </p>
           </div>
           <div className="bg-white p-6 rounded-lg shadow">
             <h3 className="text-lg font-semibold mb-3">for sellers & lenders</h3>
-            <p className="text-gray-600">list your books, earn through sales & rentals, compete with amazon</p>
+            <p className="text-gray-600">list your books, earn through sales & rentals</p>
           </div>
           <div className="bg-white p-6 rounded-lg shadow">
             <h3 className="text-lg font-semibold mb-3">for book lovers</h3>
-            <p className="text-gray-600">share reading data, find book clubs, donate to charities</p>
+            <p className="text-gray-600">share reading data, find book clubs, donate to charities (coming soon)</p>
           </div>
         </div>
         

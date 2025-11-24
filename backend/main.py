@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 import uvicorn
@@ -16,11 +16,22 @@ load_dotenv()
 
 app = FastAPI(title="readar", version="1.0.0")
 
+# Add middleware to log all requests
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    print(f"Request: {request.method} {request.url.path}")
+    print(f"Headers: {dict(request.headers)}")
+    if request.method == "POST":
+        body = await request.body()
+        print(f"Body: {body}")
+    response = await call_next(request)
+    return response
+
 # security middleware
 app.add_middleware(
     TrustedHostMiddleware, 
     # allow local dev and deployed hosts (including Render)
-    allowed_hosts=["localhost", "127.0.0.1", "*.readar.com", "readar-monorepo.onrender.com", "*.onrender.com", "*.ngrok-free.app"]
+    allowed_hosts=["localhost", "127.0.0.1", "*.readar.com", "readar-monorepo.onrender.com", "*.onrender.com", "*.ngrok-free.app", "*.ngrok-free.dev"]
 )
 
 app.add_middleware(

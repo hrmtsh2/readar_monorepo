@@ -12,10 +12,15 @@ const Footer = () => {
             <p className="mt-1 text-xs text-gray-500">© {year} Readar. All rights reserved.</p>
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-start gap-6">
             <div>
               <h4 className="text-sm font-medium text-gray-700">Contact</h4>
-              <a href="mailto:hello@readar.example" className="text-sm text-gray-600 hover:underline">readarplatform@gmail.com</a>
+              <div className="text-sm text-gray-600 space-y-1">
+                <p>MID: 13433658</p>
+                <p>Legal Name: Navtez Singh Bambra</p>
+                <p>Email: <a href="mailto:eazt7ujher@gmail.com" className="hover:underline">eazt7ujher@gmail.com</a></p>
+                <p>Phone: <a href="tel:+918791278913" className="hover:underline">+91 8791278913</a></p>
+              </div>
             </div>
 
             <div>
