@@ -20,13 +20,13 @@ app = FastAPI(title="readar", version="1.0.0")
 app.add_middleware(
     TrustedHostMiddleware, 
     # allow local dev and deployed hosts (including Render)
-    allowed_hosts=["localhost", "127.0.0.1", "*.readar.com", "readar-monorepo.onrender.com", "*.onrender.com"]
+    allowed_hosts=["localhost", "127.0.0.1", "*.readar.com", "readar-monorepo.onrender.com", "*.onrender.com", "*.ngrok-free.app"]
 )
 
 app.add_middleware(
     CORSMiddleware,
     # Allow local dev and the hosted frontend on Render (adjust if frontend is hosted elsewhere)
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "https://*.readar.com", "https://readar-monorepo.onrender.com"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "https://*.readar.com", "https://readar-monorepo.onrender.com", "https://readar-monorepo.vercel.app", "https://eb6a019cd4f7.ngrok-free.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
