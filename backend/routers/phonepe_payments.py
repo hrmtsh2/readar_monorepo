@@ -3,10 +3,11 @@ PhonePe Payment Router
 Handles payment creation, verification, and callbacks for PhonePe gateway
 """
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 
 from database import get_db
@@ -47,9 +48,15 @@ async def initiate_phonepe_payment(
     Creates reservation and PhonePe order
     """
     
-    # Get the book
-    result = await db.execute(select(Book).where(Book.id == payment_request.book_id))
-    book = result.scalar_one_or_none()
+    try:
+        # Get the book
+        result = await db.execute(select(Book).where(Book.id == payment_request.book_id))
+        book = result.scalar_one_or_none()
+    except Exception as e:
+        print(f"Database error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
@@ -73,10 +80,10 @@ async def initiate_phonepe_payment(
         book_id=book.id,
         user_id=current_user.id,
         reservation_fee=payment_amount,
-        status=ReservationStatus.RESERVED,
+        status=ReservationStatus.PENDING,
         payment_status=PaymentStatus.PENDING,
         payment_type=payment_request.payment_type,
-        expires_at=datetime.now()
+        expires_at=datetime.now() + timedelta(hours=24)
     )
     
     db.add(reservation)
@@ -143,22 +150,14 @@ async def phonepe_payment_callback(
     reservation = result.scalar_one_or_none()
     
     if not reservation:
-        return {
-            "success": False,
-            "message": "Reservation not found",
-            "redirect_url": f"{FRONTEND_URL}/payment-failed"
-        }
+        return RedirectResponse(url=f"{FRONTEND_URL}/payment-failed")
     
     # Check payment status with PhonePe
     merchant_order_id = reservation.phonepe_order_id
     status_response = check_payment_status(merchant_order_id)
     
     if not status_response.get("success"):
-        return {
-            "success": False,
-            "message": "Failed to verify payment status",
-            "redirect_url": f"{FRONTEND_URL}/payment-failed?reservation_id={reservation_id}"
-        }
+        return RedirectResponse(url=f"{FRONTEND_URL}/payment-failed?reservation_id={reservation_id}")
     
     payment_state = status_response.get("state")
     
@@ -187,30 +186,18 @@ async def phonepe_payment_callback(
         await db.commit()
         
         # Redirect to success page
-        return {
-            "success": True,
-            "message": "Payment successful",
-            "redirect_url": f"{FRONTEND_URL}/payment-success?reservation_id={reservation_id}"
-        }
+        return RedirectResponse(url=f"{FRONTEND_URL}/payment-success?reservation_id={reservation_id}")
     
     elif payment_state == "FAILED":
         # Update reservation as failed
         reservation.payment_status = PaymentStatus.FAILED
         await db.commit()
         
-        return {
-            "success": False,
-            "message": "Payment failed",
-            "redirect_url": f"{FRONTEND_URL}/payment-failed?reservation_id={reservation_id}"
-        }
+        return RedirectResponse(url=f"{FRONTEND_URL}/payment-failed?reservation_id={reservation_id}")
     
     else:
         # Payment still pending
-        return {
-            "success": False,
-            "message": "Payment is pending",
-            "redirect_url": f"{FRONTEND_URL}/payment-pending?reservation_id={reservation_id}"
-        }
+        return RedirectResponse(url=f"{FRONTEND_URL}/payment-pending?reservation_id={reservation_id}")
 
 
 @router.get("/status/{reservation_id}")

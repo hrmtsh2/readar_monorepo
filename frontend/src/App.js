@@ -18,6 +18,7 @@ import ReservationConfirmation from './pages/ReservationConfirmation';
 import PaymentPage from './pages/PaymentPage';
 import PaymentPageIntegration from './pages/PaymentPageIntegration';
 import PaymentSuccess from './pages/PaymentSuccess';
+import PaymentFailed from './pages/PaymentFailed';
 import SellerDashboard from './pages/SellerDashboard';
 import MockPayment from './pages/MockPayment';
 
@@ -90,6 +91,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <PaymentSuccess />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/payment-failed" 
+                element={
+                  <ProtectedRoute>
+                    <PaymentFailed />
                   </ProtectedRoute>
                 } 
               />
