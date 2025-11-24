@@ -7,15 +7,16 @@ export const api = axios.create({
   },
 });
 
-// Set default Content-Type for JSON, but allow overrides
-api.defaults.headers.common['Content-Type'] = 'application/json';
-
 // request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    // Set default Content-Type to JSON if not already set
+    if (!config.headers['Content-Type']) {
+      config.headers['Content-Type'] = 'application/json';
     }
     return config;
   },
