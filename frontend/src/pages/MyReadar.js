@@ -51,6 +51,7 @@ const MyReadar = () => {
           console.error(`Error ${idx}:`, err);
         });
       }
+      setMyReservations([]);
     }
   };
 
