@@ -3,10 +3,12 @@ import axios from 'axios';
 export const api = axios.create({
   baseURL: 'https://smudgeless-tagmemic-charlesetta.ngrok-free.dev/api',
   headers: {
-    'Content-Type': 'application/json',
     'ngrok-skip-browser-warning': 'true',
   },
 });
+
+// Set default Content-Type for JSON, but allow overrides
+api.defaults.headers.common['Content-Type'] = 'application/json';
 
 // request interceptor to add auth token
 api.interceptors.request.use(

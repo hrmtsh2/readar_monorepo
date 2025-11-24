@@ -44,7 +44,7 @@ export const AuthProvider = ({ children }) => {
     params.append('username', email);
     params.append('password', password);
 
-    const response = await api.post('/auth/token', params, {
+    const response = await api.post('/auth/token', params.toString(), {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded'
       }
