@@ -119,7 +119,9 @@ async def create_reservation(
         reservation_fee=advance_amount,
         razorpay_order_id=razorpay_order["id"],
         expires_at=datetime.utcnow() + timedelta(hours=24),  # 24 hour expiry
-        status=ReservationStatus.PENDING
+        status=ReservationStatus.PENDING,
+        payment_status=PaymentStatus.PENDING,
+        payment_type=reservation_data.payment_type
     )
     
     db.add(reservation)
