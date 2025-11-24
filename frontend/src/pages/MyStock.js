@@ -27,7 +27,8 @@ const MyStock = () => {
         try {
             setLoading(true);
             const response = await api.get('/books/my/books');
-            setBooks(response.data);
+            // Ensure response.data is an array
+            setBooks(Array.isArray(response.data) ? response.data : []);
         } catch (error) {
             console.error('Error fetching books:', error);
             setBooks([]);
