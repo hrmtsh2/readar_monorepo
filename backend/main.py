@@ -26,7 +26,7 @@ app.add_middleware(
 app.add_middleware(
     CORSMiddleware,
     # Allow local dev and the hosted frontend on Render (adjust if frontend is hosted elsewhere)
-    allow_origins=["http://localhost:3000", "https://*.readar.com", "https://readar-monorepo.onrender.com"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "https://*.readar.com", "https://readar-monorepo.onrender.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -57,6 +57,7 @@ async def create_db_tables_if_missing():
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+        print("Database tables created/verified successfully")
     except Exception as e:
         # Log error but don't crash startup so that the app can still surface errors
         print(f"Warning: failed to auto-create tables on startup: {e}")
