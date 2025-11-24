@@ -20,7 +20,12 @@ if not SECRET_KEY:
     SECRET_KEY = "dev-secret-change-me"
     print("Warning: SECRET_KEY not set in environment; using insecure development fallback secret.")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+
+try:
+    ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+except (ValueError, TypeError):
+    ACCESS_TOKEN_EXPIRE_MINUTES = 30
+    print("Warning: Invalid ACCESS_TOKEN_EXPIRE_MINUTES, using default 30")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/token")
@@ -58,7 +63,8 @@ def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
 def get_password_hash(password):
-    return pwd_context.hash(password)
+    # Bcrypt has a 72-byte limit, truncate if needed
+    return pwd_context.hash(password[:72])
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
@@ -102,36 +108,47 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
 
 @router.post("/register", response_model=UserResponse)
 async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
-    # check if user exists
-    result = await db.execute(select(User).filter(
-        (User.email == user.email) | (User.username == user.username)
-    ))
-    db_user = result.scalar_one_or_none()
-    if db_user:
-        raise HTTPException(
-            status_code=400,
-            detail="email or username already registered"
+    try:
+        # check if user exists
+        result = await db.execute(select(User).filter(
+            (User.email == user.email) | (User.username == user.username)
+        ))
+        db_user = result.scalar_one_or_none()
+        if db_user:
+            raise HTTPException(
+                status_code=400,
+                detail="email or username already registered"
+            )
+        
+        # create user
+        hashed_password = get_password_hash(user.password)
+        db_user = User(
+            email=user.email,
+            username=user.username,
+            hashed_password=hashed_password,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            phone=user.phone,
+            address=user.address,
+            city=user.city,
+            state=user.state,
+            zip_code=user.zip_code
         )
-    
-    # create user
-    hashed_password = get_password_hash(user.password)
-    db_user = User(
-        email=user.email,
-        username=user.username,
-        hashed_password=hashed_password,
-        first_name=user.first_name,
-        last_name=user.last_name,
-        phone=user.phone,
-        address=user.address,
-        city=user.city,
-        state=user.state,
-        zip_code=user.zip_code
-    )
-    db.add(db_user)
-    await db.commit()
-    await db.refresh(db_user)
-    
-    return db_user
+        db.add(db_user)
+        await db.commit()
+        await db.refresh(db_user)
+        
+        return db_user
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Registration error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Registration failed: {str(e)}"
+        )
 
 @router.post("/token", response_model=Token)
 async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
