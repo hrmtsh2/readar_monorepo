@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 export const api = axios.create({
-  baseURL: 'https://eb6a019cd4f7.ngrok-free.app/api',
+  baseURL: 'https://smudgeless-tagmemic-charlesetta.ngrok-free.dev/api',
   headers: {
     'Content-Type': 'application/json',
     'ngrok-skip-browser-warning': 'true',

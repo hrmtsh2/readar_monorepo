@@ -26,7 +26,7 @@ app.add_middleware(
 app.add_middleware(
     CORSMiddleware,
     # Allow local dev and the hosted frontend on Render (adjust if frontend is hosted elsewhere)
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "https://*.readar.com", "https://readar-monorepo.onrender.com", "https://readar-monorepo.vercel.app", "https://eb6a019cd4f7.ngrok-free.app"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "https://*.readar.com", "https://readar-monorepo.onrender.com", "https://readar-monorepo.vercel.app", "https://smudgeless-tagmemic-charlesetta.ngrok-free.dev"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -44,8 +44,13 @@ async def root():
     return {"message": "readar api"}
 
 @app.get("/health")
+@app.head("/health")
 async def health():
     return {"status": "ok"}
+
+@app.head("/")
+async def root_head():
+    return {}
 
 
 @app.on_event("startup")
