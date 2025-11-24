@@ -1,10 +1,7 @@
 import axios from 'axios';
 
-// Always point frontend to the hosted backend for API calls.
-const HOSTED_API_BASE = 'https://readar-monorepo.onrender.com/api';
-
 export const api = axios.create({
-  baseURL: HOSTED_API_BASE,
+  baseURL: '/api',
   headers: {
     'Content-Type': 'application/json',
   },
