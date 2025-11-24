@@ -35,7 +35,7 @@ const Sell = () => {
     const fetchUserBooks = async () => {
         try {
             const response = await api.get('/books/my/books/with-reservations');
-            setUserBooks(response.data);
+            setUserBooks(Array.isArray(response.data) ? response.data : []);
         } catch (error) {
             console.error('Error fetching user books:', error);
             setUserBooks([]);

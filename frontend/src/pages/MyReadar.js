@@ -29,9 +29,10 @@ const MyReadar = () => {
   const fetchMyBooks = async () => {
     try {
       const response = await api.get('/books/my/books');
-      setMyBooks(response.data);
+      setMyBooks(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('failed to fetch books:', error);
+      setMyBooks([]);
     }
   };
 
@@ -40,7 +41,7 @@ const MyReadar = () => {
       console.log('Fetching reservations...');
       const response = await api.get('/books/reservations');
       console.log('Reservations response:', response.data);
-      setMyReservations(response.data);
+      setMyReservations(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('Failed to fetch reservations:', error);
       console.error('Error details:', error.response?.data);
@@ -275,7 +276,7 @@ const MyReadar = () => {
               <p className="text-gray-500">No reservations yet. Start browsing books to make your first reservation!</p>
             ) : (
               <div className="space-y-4">
-                {myReservations.map((reservation) => (
+                {myReservations && myReservations.map((reservation) => (
                   <div key={reservation.id} className="border border-gray-200 rounded-lg p-4">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">

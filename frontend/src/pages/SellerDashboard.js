@@ -20,7 +20,7 @@ const SellerDashboard = () => {
     try {
       // Get reservations for books owned by this user
       const response = await api.get('/payments/seller-reservations');
-      const newReservations = response.data;
+      const newReservations = Array.isArray(response.data) ? response.data : [];
       
       // Check for new notifications (new reservations since last check)
       if (reservations.length > 0) {
@@ -46,6 +46,7 @@ const SellerDashboard = () => {
       setReservations(newReservations);
     } catch (error) {
       setError('Failed to fetch reservations');
+      setReservations([]);
     } finally {
       setLoading(false);
     }
