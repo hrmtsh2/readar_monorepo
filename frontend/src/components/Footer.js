@@ -16,19 +16,19 @@ const Footer = () => {
             <div>
               <h4 className="text-sm font-medium text-gray-700 mb-2">Legal</h4>
               <div className="flex flex-col gap-1 text-sm text-gray-600">
-                <a href="/about-us.html" target="_blank" className="hover:underline">About Us</a>
-                <a href="/contact-us.html" target="_blank" className="hover:underline">Contact Us</a>
-                <a href="/terms-and-conditions.html" target="_blank" className="hover:underline">Terms & Conditions</a>
-                <a href="/privacy-policy.html" target="_blank" className="hover:underline">Privacy Policy</a>
-                <a href="/refund-policy.html" target="_blank" className="hover:underline">Refund Policy</a>
-                <a href="/shipping-policy.html" target="_blank" className="hover:underline">Pickup Policy</a>
+                <a href="/about-us.html" className="hover:underline">About Us</a>
+                <a href="/contact-us.html" className="hover:underline">Contact Us</a>
+                <a href="/terms-and-conditions.html" className="hover:underline">Terms & Conditions</a>
+                <a href="/privacy-policy.html" className="hover:underline">Privacy Policy</a>
+                <a href="/refund-policy.html" className="hover:underline">Refund Policy</a>
+                <a href="/shipping-policy.html" className="hover:underline">Pickup Policy</a>
               </div>
             </div>
 
             <div>
               <h4 className="text-sm font-medium text-gray-700 mb-2">Contact</h4>
               <div className="text-sm text-gray-600 space-y-1">
-                <p>Legal Name: Navtez Singh Bambra</p>
+                <p>Legal Name: Navtez Bambra</p>
                 <p>Email: <a href="mailto:eazt7ujher@gmail.com" className="hover:underline">eazt7ujher@gmail.com</a></p>
                 <p>Phone: <a href="tel:+918791278913" className="hover:underline">+91 8791278913</a></p>
               </div>
