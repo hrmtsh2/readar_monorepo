@@ -111,20 +111,44 @@ def check_payment_status(merchant_order_id: str):
     try:
         client = get_phonepe_client()
         
-        # Check order status
-        status_response = client.check_status(merchant_order_id)
+        # Check order status - use the correct method name
+        status_response = client.get_order_status(merchant_order_id)
+        
+        # Log all attributes of the response
+        print(f"PhonePe status_response type: {type(status_response)}")
+        print(f"PhonePe status_response dict: {status_response.__dict__ if hasattr(status_response, '__dict__') else 'N/A'}")
+        
+        # Extract state from response
+        state = None
+        transaction_id = None
+        payment_mode = None
+        
+        if hasattr(status_response, 'state'):
+            state = status_response.state
+            print(f"Order state: {state}")
+        
+        # Check if there are payment details (for transaction info)
+        if hasattr(status_response, 'payment_details') and status_response.payment_details:
+            latest_payment = status_response.payment_details[-1] if isinstance(status_response.payment_details, list) else status_response.payment_details
+            if hasattr(latest_payment, 'transaction_id'):
+                transaction_id = latest_payment.transaction_id
+            if hasattr(latest_payment, 'payment_mode'):
+                payment_mode = latest_payment.payment_mode
+            print(f"Latest payment details - transaction_id: {transaction_id}, payment_mode: {payment_mode}")
         
         return {
             "success": True,
-            "state": status_response.state,
-            "payment_method": status_response.payment_method if hasattr(status_response, 'payment_method') else None,
-            "transaction_id": status_response.transaction_id if hasattr(status_response, 'transaction_id') else None,
+            "state": state,
+            "payment_method": payment_mode,
+            "transaction_id": transaction_id,
             "amount": status_response.amount if hasattr(status_response, 'amount') else None,
             "response": status_response
         }
         
     except Exception as e:
         print(f"PhonePe status check error: {e}")
+        import traceback
+        traceback.print_exc()
         return {
             "success": False,
             "error": str(e)

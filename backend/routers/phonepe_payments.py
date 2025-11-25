@@ -145,24 +145,41 @@ async def phonepe_payment_callback(
     Verifies payment and updates reservation status
     """
     
+    # Log all query parameters to debug
+    print(f"=== PhonePe Callback Triggered ===")
+    print(f"Full URL: {request.url}")
+    print(f"Query params: {dict(request.query_params)}")
+    print(f"Headers: {dict(request.headers)}")
+    
     # Get reservation
     result = await db.execute(select(Reservation).where(Reservation.id == reservation_id))
     reservation = result.scalar_one_or_none()
     
     if not reservation:
+        print(f"Reservation {reservation_id} not found")
         return RedirectResponse(url=f"{FRONTEND_URL}/payment-failed")
     
     # Check payment status with PhonePe
     merchant_order_id = reservation.phonepe_order_id
+    print(f"Checking payment status for merchant_order_id: {merchant_order_id}")
+    
+    if not merchant_order_id:
+        print("No merchant_order_id found, treating as failed")
+        return RedirectResponse(url=f"{FRONTEND_URL}/payment-failed?reservation_id={reservation_id}")
+    
     status_response = check_payment_status(merchant_order_id)
+    print(f"PhonePe status response: {status_response}")
     
     if not status_response.get("success"):
+        print(f"PhonePe status check failed: {status_response.get('error')}")
         return RedirectResponse(url=f"{FRONTEND_URL}/payment-failed?reservation_id={reservation_id}")
     
     payment_state = status_response.get("state")
+    print(f"Payment state received: '{payment_state}' (type: {type(payment_state)})")
     
-    # Check if payment is successful
+    # Handle different payment states
     if payment_state == "COMPLETED":
+        print("Payment COMPLETED - updating reservation to CONFIRMED")
         # Update reservation status
         reservation.payment_status = PaymentStatus.PAID
         reservation.status = ReservationStatus.CONFIRMED
@@ -189,15 +206,27 @@ async def phonepe_payment_callback(
         return RedirectResponse(url=f"{FRONTEND_URL}/payment-success?reservation_id={reservation_id}")
     
     elif payment_state == "FAILED":
+        print("Payment FAILED - updating reservation to FAILED")
         # Update reservation as failed
         reservation.payment_status = PaymentStatus.FAILED
+        reservation.status = ReservationStatus.CANCELLED
         await db.commit()
         
         return RedirectResponse(url=f"{FRONTEND_URL}/payment-failed?reservation_id={reservation_id}")
     
-    else:
-        # Payment still pending
+    elif payment_state == "PENDING":
+        print("Payment PENDING - keeping reservation as PENDING")
+        # Payment still pending, keep reservation as is
         return RedirectResponse(url=f"{FRONTEND_URL}/payment-pending?reservation_id={reservation_id}")
+    
+    else:
+        print(f"Unknown payment state: {payment_state} - treating as failed")
+        # Unknown state, treat as failed
+        reservation.payment_status = PaymentStatus.FAILED
+        reservation.status = ReservationStatus.CANCELLED
+        await db.commit()
+        
+        return RedirectResponse(url=f"{FRONTEND_URL}/payment-failed?reservation_id={reservation_id}")
 
 
 @router.get("/status/{reservation_id}")

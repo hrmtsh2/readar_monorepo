@@ -145,16 +145,16 @@ class Payment(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     reservation_id = Column(Integer, ForeignKey("reservations.id"), nullable=False)
-    razorpay_order_id = Column(String)
-    razorpay_payment_id = Column(String)
-    phonepe_order_id = Column(String)  # PhonePe merchant order ID
-    phonepe_payment_id = Column(String)  # PhonePe transaction ID
-    payment_method = Column(String)  # razorpay, phonepe, etc.
-    transaction_id = Column(String)  # Generic transaction ID
+    razorpay_order_id = Column(String, nullable=True)
+    razorpay_payment_id = Column(String, nullable=True)
+    phonepe_order_id = Column(String, nullable=True)  # PhonePe merchant order ID
+    phonepe_payment_id = Column(String, nullable=True)  # PhonePe transaction ID
+    payment_method = Column(String, nullable=True)  # razorpay, phonepe, etc.
+    transaction_id = Column(String, nullable=True)  # Generic transaction ID
     amount = Column(Float, nullable=False)
     currency = Column(String, default="INR")
     status = Column(Enum(PaymentStatus), default=PaymentStatus.PENDING)
-    gateway_response = Column(Text)  # Store full gateway response
+    gateway_response = Column(Text, nullable=True)  # Store full gateway response
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     

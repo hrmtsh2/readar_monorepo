@@ -41,3 +41,4 @@ Thumbs.db
 # misc scripts and files
 backend/generate_sample_books_xlsx.py
 backend/sample_books.xlsx
+backend/some_more_sample_books.xlsx

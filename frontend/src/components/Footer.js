@@ -28,9 +28,9 @@ const Footer = () => {
             <div>
               <h4 className="text-sm font-medium text-gray-700 mb-2">Contact</h4>
               <div className="text-sm text-gray-600 space-y-1">
-                <p>Legal Name: Navtez Bambra</p>
+                <p>Legal Name: Amitesh Mahapatra</p>
                 <p>Email: <a href="mailto:eazt7ujher@gmail.com" className="hover:underline">eazt7ujher@gmail.com</a></p>
-                <p>Phone: <a href="tel:+918791278913" className="hover:underline">+91 8791278913</a></p>
+                <p>Phone: <a href="tel:+919078240430" className="hover:underline">+91 9078240430</a></p>
               </div>
             </div>
 
