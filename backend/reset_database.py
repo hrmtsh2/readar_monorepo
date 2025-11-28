@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-"""
-Complete database reset script - creates fresh database with correct enum values
-"""
 
 import os
 import asyncio

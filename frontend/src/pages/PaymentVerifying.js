@@ -18,7 +18,7 @@ const PaymentVerifying = () => {
       try {
         console.log('Verifying payment for reservation:', reservationId);
         // Check PhonePe payment status
-        const response = await api.get(`/phonepe/status/${reservationId}`);
+        const response = await api.get(`/payments/phonepe/status/${reservationId}`);
         console.log('Payment status response:', response.data);
         
         // Redirect based on actual payment status

@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Dict, Any
@@ -6,71 +7,52 @@ import os
 from datetime import datetime, timedelta
 import json
 
-# Optional Razorpay import for production use
-try:
-    import razorpay
-    RAZORPAY_AVAILABLE = True
-except ImportError:
-    RAZORPAY_AVAILABLE = False
-    print("Warning: Razorpay not installed. Using mock payment system.")
-
 from database import get_db
 from models import Book, User, Reservation, Payment, BookStatus, ReservationStatus, PaymentStatus
 from routers.auth import get_current_user
 from pydantic import BaseModel
+from services.phonepe_service import create_payment_order, check_payment_status
+
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 router = APIRouter()
-
-# Razorpay client initialization (only if available)
-RAZORPAY_MODE = os.getenv("RAZORPAY_MODE", "test").lower()  # 'test' or 'live'
-
-# Support separate env vars for test vs live keys. Fall back to older generic names if present.
-if RAZORPAY_MODE == 'live':
-    RAZORPAY_KEY_ID = os.getenv("RAZORPAY_LIVE_KEY_ID") or os.getenv("RAZORPAY_KEY_ID")
-    RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_LIVE_KEY_SECRET") or os.getenv("RAZORPAY_KEY_SECRET")
-else:
-    RAZORPAY_KEY_ID = os.getenv("RAZORPAY_TEST_KEY_ID") or os.getenv("RAZORPAY_KEY_ID", "rzp_test_dummy")
-    RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_TEST_KEY_SECRET") or os.getenv("RAZORPAY_KEY_SECRET", "dummy_secret")
-
-if RAZORPAY_AVAILABLE:
-    client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
-else:
-    client = None
 
 class ReservationCreate(BaseModel):
     book_id: int
     payment_type: str = "purchase"  # "purchase" or "rental"
+    rental_weeks: int = None  # Number of weeks for rental (1, 2, or 3)
 
 class PaymentPageCreate(BaseModel):
     book_id: int
     payment_type: str = "purchase"  # "purchase" or "rental"
+    rental_weeks: int = None  # Number of weeks for rental (1, 2, or 3)
 
 class PaymentVerification(BaseModel):
-    razorpay_order_id: str
-    razorpay_payment_id: str
-    razorpay_signature: str
+    phonepe_order_id: str
+    phonepe_payment_id: str
     reservation_id: int
 
 class ReservationResponse(BaseModel):
     id: int
     book_id: int
     reservation_fee: float
-    razorpay_order_id: str
-    key_id: str  # For frontend Razorpay integration
-    amount: int  # Amount in paise
+    phonepe_order_id: str
+    payment_url: str  # PhonePe payment page URL
+    amount: float  # Amount in rupees
     currency: str
     book_title: str
     seller_contact: str = None  # Only shown after payment
-    live_mode: bool = False
 
+# create a reservation and PhonePe order for advance payment
 @router.post("/reserve", response_model=ReservationResponse)
+@router.post("/phonepe/initiate", response_model=ReservationResponse)  # Alias for PhonePe-specific flow
 async def create_reservation(
     reservation_data: ReservationCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Create a reservation and Razorpay order for advance payment"""
-    
+        
     # Get the book
     result = await db.execute(select(Book).where(Book.id == reservation_data.book_id))
     book = result.scalar_one_or_none()
@@ -84,57 +66,78 @@ async def create_reservation(
     if book.owner_id == current_user.id:
         raise HTTPException(status_code=400, detail="You cannot reserve your own book")
     
-    # Per product decision: the advance/reservation payment should be the full book price
-    # (regardless of the provided advance_percentage). Use book.price as the amount.
-    # Keep the rental availability check for rental payment_type.
+    # Calculate payment amount based on type
     if reservation_data.payment_type == 'rental':
         if not book.is_for_rent or book.weekly_fee is None:
             raise HTTPException(status_code=400, detail="Book is not available for rental")
-
-    advance_amount = float(book.price)
-    amount_in_paise = int(advance_amount * 100)  # Convert to paise
+        
+        # Validate rental_weeks
+        if not reservation_data.rental_weeks or reservation_data.rental_weeks not in [1, 2, 3]:
+            raise HTTPException(status_code=400, detail="Rental weeks must be 1, 2, or 3")
+        
+        # Calculate rental fee based on weeks
+        advance_amount = float(book.weekly_fee) * reservation_data.rental_weeks
+    else:
+        # For purchase, use full book price
+        advance_amount = float(book.price)
     
-    # Create Razorpay order
-    order_data = {
-        "amount": amount_in_paise,
-        "currency": "INR",
-        "receipt": f"book_reservation_{book.id}_{current_user.id}_{int(datetime.now().timestamp())}",
-        "notes": {
-            "book_id": str(book.id),
-            "book_title": book.title,
-            "buyer_id": str(current_user.id),
-            "buyer_email": current_user.email
-        }
-    }
-    
-    try:
-        razorpay_order = client.order.create(data=order_data)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create payment order: {str(e)}")
-    
-    # Create reservation in database
+    # Create reservation in database first
     reservation = Reservation(
         book_id=book.id,
         user_id=current_user.id,
         reservation_fee=advance_amount,
-        razorpay_order_id=razorpay_order["id"],
-        expires_at=datetime.utcnow() + timedelta(hours=24),  # 24 hour expiry
+        expires_at=datetime.now() + timedelta(hours=24),  # 24 hour expiry
         status=ReservationStatus.PENDING,
         payment_status=PaymentStatus.PENDING,
-        payment_type=reservation_data.payment_type
+        payment_type=reservation_data.payment_type,
+        rental_weeks=reservation_data.rental_weeks if reservation_data.payment_type == 'rental' else None
     )
     
     db.add(reservation)
     await db.commit()
     await db.refresh(reservation)
     
+    # Generate merchant order ID
+    merchant_order_id = f"RES_{reservation.id}_{int(datetime.now().timestamp())}"
+    
+    # Create redirect URL
+    redirect_url = f"{BACKEND_URL}/api/phonepe/callback?reservation_id={reservation.id}"
+    
+    # Create PhonePe payment order
+    payment_response = create_payment_order(
+        amount=advance_amount,
+        redirect_url=redirect_url,
+        merchant_order_id=merchant_order_id,
+        metadata={
+            "udf1": str(reservation.id),
+            "udf2": str(book.id),
+            "udf3": str(current_user.id),
+            "udf4": reservation_data.payment_type,
+            "udf5": book.title
+        }
+    )
+    
+    if not payment_response.get("success"):
+        # Rollback reservation if payment creation failed
+        await db.delete(reservation)
+        await db.commit()
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to create PhonePe order: {payment_response.get('error')}"
+        )
+    
+    # Update reservation with PhonePe order details
+    reservation.phonepe_order_id = merchant_order_id
+    reservation.phonepe_payment_id = payment_response.get("order_id")
+    
     # Create payment record
     payment = Payment(
         reservation_id=reservation.id,
-        razorpay_order_id=razorpay_order["id"],
+        phonepe_order_id=merchant_order_id,
         amount=advance_amount,
         currency="INR",
-        status=PaymentStatus.PENDING
+        status=PaymentStatus.PENDING,
+        payment_method="phonepe"
     )
     
     db.add(payment)
@@ -144,12 +147,11 @@ async def create_reservation(
         id=reservation.id,
         book_id=book.id,
         reservation_fee=advance_amount,
-        razorpay_order_id=razorpay_order["id"],
-        key_id=RAZORPAY_KEY_ID,
-        amount=amount_in_paise,
+        phonepe_order_id=merchant_order_id,
+        payment_url=payment_response["payment_url"],
+        amount=advance_amount,
         currency="INR",
-        book_title=book.title,
-        live_mode=(RAZORPAY_MODE == 'live')
+        book_title=book.title
     )
 
 @router.post("/verify-payment")
@@ -158,7 +160,7 @@ async def verify_payment(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Verify Razorpay payment and complete reservation"""
+    """Verify PhonePe payment and complete reservation"""
     
     # Get reservation
     result = await db.execute(
@@ -172,26 +174,25 @@ async def verify_payment(
     if reservation.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to verify this payment")
     
-    # Verify payment signature
-    params_dict = {
-        'razorpay_order_id': payment_data.razorpay_order_id,
-        'razorpay_payment_id': payment_data.razorpay_payment_id,
-        'razorpay_signature': payment_data.razorpay_signature
-    }
+    # Check payment status with PhonePe
+    merchant_order_id = reservation.phonepe_order_id
     
-    try:
-        client.utility.verify_payment_signature(params_dict)
-    except razorpay.errors.SignatureVerificationError:
-        raise HTTPException(status_code=400, detail="Invalid payment signature")
+    if not merchant_order_id:
+        raise HTTPException(status_code=400, detail="No PhonePe order found for this reservation")
     
-    # Get payment details from Razorpay
-    try:
-        payment_details = client.payment.fetch(payment_data.razorpay_payment_id)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to fetch payment details")
+    status_response = check_payment_status(merchant_order_id)
+    
+    if not status_response.get("success"):
+        raise HTTPException(status_code=500, detail="Failed to verify payment status with PhonePe")
+    
+    payment_state = status_response.get("state")
+    
+    if payment_state != "COMPLETED":
+        raise HTTPException(status_code=400, detail=f"Payment not completed. Current status: {payment_state}")
     
     # Update reservation and payment status
-    reservation.payment_id = payment_data.razorpay_payment_id
+    reservation.phonepe_payment_id = payment_data.phonepe_payment_id
+    reservation.payment_status = PaymentStatus.PAID
     reservation.status = ReservationStatus.CONFIRMED
     
     # Update payment record
@@ -201,9 +202,10 @@ async def verify_payment(
     payment = result.scalar_one_or_none()
     
     if payment:
-        payment.razorpay_payment_id = payment_data.razorpay_payment_id
+        payment.phonepe_payment_id = payment_data.phonepe_payment_id
+        payment.transaction_id = status_response.get("transaction_id")
         payment.status = PaymentStatus.PAID
-        payment.gateway_response = json.dumps(payment_details)
+        payment.gateway_response = json.dumps(status_response)
     
     # Update book status to reserved
     result = await db.execute(select(Book).where(Book.id == reservation.book_id))
@@ -215,6 +217,178 @@ async def verify_payment(
     await db.commit()
     
     return {"message": "Payment verified successfully", "reservation_id": reservation.id}
+
+
+# PhonePe Callback Handler
+@router.get("/phonepe/callback")
+async def phonepe_payment_callback(
+    request: Request,
+    reservation_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Handle PhonePe payment callback/redirect
+    Verifies payment and updates reservation status
+    """
+    
+    # Log all query parameters to debug
+    print(f"=== PhonePe Callback Triggered ===")
+    print(f"Full URL: {request.url}")
+    print(f"Query params: {dict(request.query_params)}")
+    
+    # Get reservation
+    result = await db.execute(select(Reservation).where(Reservation.id == reservation_id))
+    reservation = result.scalar_one_or_none()
+    
+    if not reservation:
+        print(f"Reservation {reservation_id} not found")
+        return RedirectResponse(url=f"{FRONTEND_URL}/payment-failed")
+    
+    # Check payment status with PhonePe
+    merchant_order_id = reservation.phonepe_order_id
+    print(f"Checking payment status for merchant_order_id: {merchant_order_id}")
+    
+    if not merchant_order_id:
+        print("No merchant_order_id found, treating as failed")
+        return RedirectResponse(url=f"{FRONTEND_URL}/payment-failed?reservation_id={reservation_id}")
+    
+    status_response = check_payment_status(merchant_order_id)
+    print(f"PhonePe status response: {status_response}")
+    
+    if not status_response.get("success"):
+        print(f"PhonePe status check failed: {status_response.get('error')}")
+        return RedirectResponse(url=f"{FRONTEND_URL}/payment-failed?reservation_id={reservation_id}")
+    
+    payment_state = status_response.get("state")
+    print(f"Payment state received: '{payment_state}'")
+    
+    # Check payment state and redirect accordingly
+    if payment_state == "COMPLETED":
+        print("Payment COMPLETED - updating reservation to CONFIRMED")
+        # Update reservation status
+        reservation.payment_status = PaymentStatus.PAID
+        reservation.status = ReservationStatus.CONFIRMED
+        
+        # Set rental start date and due date for rentals
+        if reservation.payment_type == 'rental' and reservation.rental_weeks:
+            reservation.rental_start_date = datetime.now()
+            reservation.due_date = datetime.now() + timedelta(weeks=reservation.rental_weeks)
+        
+        # Update book status
+        result = await db.execute(select(Book).where(Book.id == reservation.book_id))
+        book = result.scalar_one_or_none()
+        if book:
+            book.status = BookStatus.RESERVED
+        
+        # Create payment record if not exists
+        payment_exists = await db.execute(
+            select(Payment).where(Payment.reservation_id == reservation.id)
+        )
+        existing_payment = payment_exists.scalar_one_or_none()
+        
+        if not existing_payment:
+            payment = Payment(
+                reservation_id=reservation.id,
+                amount=reservation.reservation_fee,
+                payment_method="phonepe",
+                transaction_id=status_response.get("transaction_id"),
+                status=PaymentStatus.PAID
+            )
+            db.add(payment)
+        
+        await db.commit()
+        
+        print(f"Redirecting to payment-success page for reservation {reservation_id}")
+        return RedirectResponse(url=f"{FRONTEND_URL}/payment-success?reservation_id={reservation_id}")
+    
+    else:
+        print(f"Payment not completed (state: {payment_state}) - updating reservation to CANCELLED")
+        # Update reservation as failed/cancelled for any non-completed state
+        reservation.payment_status = PaymentStatus.FAILED
+        reservation.status = ReservationStatus.CANCELLED
+        await db.commit()
+        
+        print(f"Redirecting to payment-failed page for reservation {reservation_id}")
+        return RedirectResponse(url=f"{FRONTEND_URL}/payment-failed?reservation_id={reservation_id}")
+
+
+# PhonePe Status Check
+@router.get("/phonepe/status/{reservation_id}")
+async def get_phonepe_payment_status(
+    reservation_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get real-time PhonePe payment status for a reservation
+    """
+    
+    # Get reservation
+    result = await db.execute(select(Reservation).where(Reservation.id == reservation_id))
+    reservation = result.scalar_one_or_none()
+    
+    if not reservation:
+        raise HTTPException(status_code=404, detail="Reservation not found")
+    
+    # Check if user is authorized to view this reservation
+    if reservation.user_id != current_user.id:
+        result = await db.execute(select(Book).where(Book.id == reservation.book_id))
+        book = result.scalar_one_or_none()
+        if not book or book.owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Not authorized to view this reservation")
+    
+    # Check payment status with PhonePe
+    phonepe_status = None
+    transaction_id = None
+    
+    if reservation.phonepe_order_id:
+        status_response = check_payment_status(reservation.phonepe_order_id)
+        
+        if status_response.get("success"):
+            phonepe_status = status_response.get("state")
+            transaction_id = status_response.get("transaction_id")
+            
+            # Update reservation status based on PhonePe status if it changed
+            if phonepe_status == "COMPLETED" and reservation.payment_status != PaymentStatus.PAID:
+                reservation.payment_status = PaymentStatus.PAID
+                reservation.status = ReservationStatus.CONFIRMED
+                
+                # Update book status
+                result = await db.execute(select(Book).where(Book.id == reservation.book_id))
+                book = result.scalar_one_or_none()
+                if book:
+                    book.status = BookStatus.RESERVED
+                
+                # Create payment record if not exists
+                payment_exists = await db.execute(
+                    select(Payment).where(Payment.reservation_id == reservation.id)
+                )
+                if not payment_exists.scalar_one_or_none():
+                    payment = Payment(
+                        reservation_id=reservation.id,
+                        amount=reservation.reservation_fee,
+                        payment_method="phonepe",
+                        transaction_id=transaction_id,
+                        status=PaymentStatus.PAID
+                    )
+                    db.add(payment)
+                
+                await db.commit()
+                
+            elif phonepe_status in ["FAILED", "PENDING"] and reservation.payment_status != PaymentStatus.FAILED:
+                reservation.payment_status = PaymentStatus.FAILED
+                reservation.status = ReservationStatus.CANCELLED
+                await db.commit()
+    
+    return {
+        "reservation_id": reservation.id,
+        "payment_status": reservation.payment_status.value if reservation.payment_status else None,
+        "reservation_status": reservation.status.value if reservation.status else None,
+        "phonepe_status": phonepe_status,
+        "transaction_id": transaction_id,
+        "amount": reservation.reservation_fee
+    }
+
 
 @router.get("/reservation/{reservation_id}")
 async def get_reservation_details(
@@ -257,10 +431,25 @@ async def get_reservation_details(
             "description": book.description
         },
         "reservation_fee": reservation.reservation_fee,
+        "payment_type": reservation.payment_type,
         "status": reservation.status.value,
         "created_at": reservation.created_at.isoformat() if reservation.created_at else None,
         "expires_at": reservation.expires_at.isoformat() if reservation.expires_at else None
     }
+    
+    # Add rental information if it's a rental
+    if reservation.payment_type == 'rental':
+        response_data["rental_weeks"] = reservation.rental_weeks
+        response_data["rental_start_date"] = reservation.rental_start_date.isoformat() if reservation.rental_start_date else None
+        response_data["due_date"] = reservation.due_date.isoformat() if reservation.due_date else None
+        
+        # Check if overdue
+        if reservation.due_date and datetime.now() > reservation.due_date:
+            response_data["is_overdue"] = True
+            days_overdue = (datetime.now() - reservation.due_date).days
+            response_data["days_overdue"] = days_overdue
+        else:
+            response_data["is_overdue"] = False
     
     # Only show seller contact if payment is confirmed
     if reservation.status == ReservationStatus.CONFIRMED:
@@ -270,7 +459,11 @@ async def get_reservation_details(
             "phone": seller.phone,
             "address": f"{seller.address}, {seller.city}, {seller.state} {seller.zip_code}".strip(", ")
         }
-        response_data["pickup_instructions"] = "Contact the seller to arrange pickup. Remaining amount to be paid during pickup."
+        
+        if reservation.payment_type == 'rental':
+            response_data["pickup_instructions"] = "Contact the seller to arrange pickup. Return the book before the due date."
+        else:
+            response_data["pickup_instructions"] = "Contact the seller to arrange pickup."
     
     return response_data
 
@@ -338,7 +531,7 @@ async def get_seller_reservations(
     
     reservations = []
     for reservation, book, buyer_first_name, buyer_last_name, buyer_email, buyer_phone in reservations_data:
-        reservations.append({
+        reservation_dict = {
             "id": reservation.id,
             "book_title": book.title,
             "book_author": book.author,
@@ -348,11 +541,27 @@ async def get_seller_reservations(
             "buyer_name": f"{buyer_first_name} {buyer_last_name}",
             "buyer_email": buyer_email,
             "buyer_phone": buyer_phone,
+            "payment_type": reservation.payment_type,
             "status": reservation.status.value,
             "payment_status": "PAID",  # Since we only show confirmed reservations
             "created_at": reservation.created_at.isoformat(),
             "valid_until": reservation.expires_at.isoformat()
-        })
+        }
+        
+        # Add rental information if applicable
+        if reservation.payment_type == 'rental':
+            reservation_dict["rental_weeks"] = reservation.rental_weeks
+            reservation_dict["rental_start_date"] = reservation.rental_start_date.isoformat() if reservation.rental_start_date else None
+            reservation_dict["due_date"] = reservation.due_date.isoformat() if reservation.due_date else None
+            
+            # Check if overdue
+            if reservation.due_date and datetime.now() > reservation.due_date:
+                reservation_dict["is_overdue"] = True
+                reservation_dict["days_overdue"] = (datetime.now() - reservation.due_date).days
+            else:
+                reservation_dict["is_overdue"] = False
+        
+        reservations.append(reservation_dict)
     
     return reservations
 
@@ -390,9 +599,11 @@ async def create_mock_reservation(
         book_id=book.id,
         user_id=current_user.id,
         reservation_fee=advance_amount,
-        razorpay_order_id=mock_order_id,  # Store mock order ID here
-        expires_at=datetime.utcnow() + timedelta(hours=24),  # 24 hour expiry
-        status=ReservationStatus.PENDING
+        phonepe_order_id=mock_order_id,  # Store mock order ID here
+        expires_at=datetime.now() + timedelta(hours=24),  # 24 hour expiry
+        status=ReservationStatus.PENDING,
+        payment_status=PaymentStatus.PENDING,
+        payment_type=reservation_data.payment_type
     )
     
     db.add(reservation)
@@ -402,10 +613,11 @@ async def create_mock_reservation(
     # Create mock payment record
     payment = Payment(
         reservation_id=reservation.id,
-        razorpay_order_id=mock_order_id,
+        phonepe_order_id=mock_order_id,
         amount=advance_amount,
         currency="INR",
-        status=PaymentStatus.PENDING
+        status=PaymentStatus.PENDING,
+        payment_method="phonepe_mock"
     )
     
     db.add(payment)
@@ -446,7 +658,8 @@ async def mock_verify_payment(
     
     # Update reservation status
     reservation.status = ReservationStatus.CONFIRMED
-    reservation.payment_id = mock_payment_id
+    reservation.payment_status = PaymentStatus.PAID
+    reservation.phonepe_payment_id = mock_payment_id
     
     # Update payment status
     result = await db.execute(
@@ -456,7 +669,8 @@ async def mock_verify_payment(
     
     if payment:
         payment.status = PaymentStatus.PAID
-        payment.razorpay_payment_id = mock_payment_id
+        payment.phonepe_payment_id = mock_payment_id
+        payment.transaction_id = mock_payment_id
     
     # Update book status
     result = await db.execute(
@@ -478,7 +692,7 @@ async def create_payment_page(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Create a Razorpay Payment Page for full book purchase (Model A)"""
+    """Create a PhonePe Payment Page for full book purchase (Model A)"""
     
     # Get the book
     result = await db.execute(select(Book).where(Book.id == payment_data.book_id))
@@ -497,22 +711,57 @@ async def create_payment_page(
     reservation = Reservation(
         book_id=book.id,
         user_id=current_user.id,
-        advance_percentage=100.0,  # Full payment for purchases
         reservation_fee=book.price,
         status=ReservationStatus.PENDING,
+        payment_status=PaymentStatus.PENDING,
+        payment_type=payment_data.payment_type,
         expires_at=datetime.now() + timedelta(hours=24)
     )
     
     db.add(reservation)
-    await db.flush()  # Get reservation ID
+    await db.commit()
+    await db.refresh(reservation)
+    
+    # Generate merchant order ID
+    merchant_order_id = f"RES_{reservation.id}_{int(datetime.now().timestamp())}"
+    
+    # Create redirect URL
+    redirect_url = f"{BACKEND_URL}/api/phonepe/callback?reservation_id={reservation.id}"
+    
+    # Create PhonePe payment order
+    payment_response = create_payment_order(
+        amount=float(book.price),
+        redirect_url=redirect_url,
+        merchant_order_id=merchant_order_id,
+        metadata={
+            "udf1": str(reservation.id),
+            "udf2": str(book.id),
+            "udf3": str(current_user.id),
+            "udf4": payment_data.payment_type,
+            "udf5": book.title
+        }
+    )
+    
+    if not payment_response.get("success"):
+        await db.delete(reservation)
+        await db.commit()
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to create PhonePe order: {payment_response.get('error')}"
+        )
+    
+    # Update reservation with PhonePe order details
+    reservation.phonepe_order_id = merchant_order_id
+    reservation.phonepe_payment_id = payment_response.get("order_id")
     
     # Create Payment record
     payment = Payment(
         reservation_id=reservation.id,
+        phonepe_order_id=merchant_order_id,
         amount=book.price,
         currency="INR",
         status=PaymentStatus.PENDING,
-        gateway="razorpay"
+        payment_method="phonepe"
     )
     
     db.add(payment)
@@ -521,12 +770,12 @@ async def create_payment_page(
     # Return Payment Page configuration
     return {
         "reservation_id": reservation.id,
-        "payment_page_url": f"https://razorpay.com/payment-button/{os.getenv('RAZORPAY_PAYMENT_BUTTON_ID', 'YOUR_BUTTON_ID')}",
+        "payment_url": payment_response["payment_url"],
         "book_title": book.title,
         "amount": book.price,
         "currency": "INR",
-        "success_url": f"http://localhost:3000/payment-success?reservation_id={reservation.id}",
-        "cancel_url": "http://localhost:3000/payment-cancel"
+        "success_url": f"{FRONTEND_URL}/payment-success?reservation_id={reservation.id}",
+        "cancel_url": f"{FRONTEND_URL}/payment-failed?reservation_id={reservation.id}"
     }
 
 @router.post("/payment-page/verify")
@@ -535,7 +784,7 @@ async def verify_payment_page_payment(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Verify payment from Payment Page and complete purchase"""
+    """Verify payment from PhonePe Payment Page and complete purchase"""
     
     # Get reservation
     result = await db.execute(
@@ -549,35 +798,46 @@ async def verify_payment_page_payment(
     if reservation.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    # Update reservation status (in real implementation, verify with Razorpay webhook)
-    reservation.status = ReservationStatus.CONFIRMED
+    # Check payment status with PhonePe
+    merchant_order_id = reservation.phonepe_order_id
     
-    # Update payment record
-    result = await db.execute(
-        select(Payment).where(Payment.reservation_id == reservation.id)
-    )
-    payment = result.scalar_one_or_none()
+    if merchant_order_id:
+        status_response = check_payment_status(merchant_order_id)
+        
+        if status_response.get("success") and status_response.get("state") == "COMPLETED":
+            # Update reservation status
+            reservation.status = ReservationStatus.CONFIRMED
+            reservation.payment_status = PaymentStatus.PAID
+            
+            # Update payment record
+            result = await db.execute(
+                select(Payment).where(Payment.reservation_id == reservation.id)
+            )
+            payment = result.scalar_one_or_none()
+            
+            if payment:
+                payment.status = PaymentStatus.PAID
+                payment.phonepe_payment_id = status_response.get("transaction_id")
+                payment.transaction_id = status_response.get("transaction_id")
+            
+            # Update book status to reserved
+            result = await db.execute(select(Book).where(Book.id == reservation.book_id))
+            book = result.scalar_one_or_none()
+            
+            if book:
+                book.status = BookStatus.RESERVED
+            
+            await db.commit()
+            
+            return {
+                "status": "success",
+                "message": "Payment verified successfully",
+                "reservation_id": reservation.id,
+                "next_steps": [
+                    "Contact the seller to arrange pickup",
+                    "Collect the book within 24 hours",
+                    "Confirm collection to release payment to seller"
+                ]
+            }
     
-    if payment:
-        payment.status = PaymentStatus.PAID
-        payment.razorpay_payment_id = f"pay_{int(datetime.now().timestamp())}"
-    
-    # Update book status to reserved
-    result = await db.execute(select(Book).where(Book.id == reservation.book_id))
-    book = result.scalar_one_or_none()
-    
-    if book:
-        book.status = BookStatus.RESERVED
-    
-    await db.commit()
-    
-    return {
-        "status": "success",
-        "message": "Payment verified successfully",
-        "reservation_id": reservation.id,
-        "next_steps": [
-            "Contact the seller to arrange pickup",
-            "Collect the book within 24 hours",
-            "Confirm collection to release payment to seller"
-        ]
-    }
+    raise HTTPException(status_code=400, detail="Payment not completed or verification failed")

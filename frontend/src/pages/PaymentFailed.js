@@ -20,7 +20,7 @@ const PaymentFailed = () => {
 
   const fetchReservationDetails = async () => {
     try {
-      const response = await api.get(`/phonepe/status/${reservationId}`);
+      const response = await api.get(`/payments/phonepe/status/${reservationId}`);
       setReservationData(response.data);
     } catch (error) {
       console.error('Failed to fetch reservation details:', error);

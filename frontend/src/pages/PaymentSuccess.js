@@ -28,7 +28,7 @@ const PaymentSuccess = () => {
   const verifyPaymentPageAndFetch = useCallback(async () => {
     try {
       // Check PhonePe payment status first
-      const statusResponse = await api.get(`/phonepe/status/${reservationId}`);
+      const statusResponse = await api.get(`/payments/phonepe/status/${reservationId}`);
       
       // If payment is not completed, redirect to failed page
       if (statusResponse.data.phonepe_status !== 'COMPLETED') {
@@ -102,14 +102,34 @@ const PaymentSuccess = () => {
       {reservationDetails && (
         <>
           <div className="bg-green-50 p-4 rounded-lg mb-6">
-            <h3 className="text-lg font-semibold mb-2">Book Reserved</h3>
+            <h3 className="text-lg font-semibold mb-2">
+              {reservationDetails.payment_type === 'rental' ? 'Book Rental Confirmed' : 'Book Reserved'}
+            </h3>
             <p><strong>Title:</strong> {reservationDetails.book?.title || 'N/A'}</p>
             <p><strong>Author:</strong> {reservationDetails.book?.author || 'N/A'}</p>
             <p><strong>Condition:</strong> {reservationDetails.book?.condition || 'N/A'}</p>
             <p><strong>Amount Paid:</strong> ₹{reservationDetails.reservation_fee}</p>
-            <p><strong>Remaining Amount:</strong> ₹{(reservationDetails.book?.price - reservationDetails.reservation_fee).toFixed(2)}</p>
-            {reservationDetails.expires_at && (
-              <p><strong>Reservation Valid Until:</strong> {new Date(reservationDetails.expires_at).toLocaleString()}</p>
+            
+            {reservationDetails.payment_type === 'rental' ? (
+              <>
+                <p><strong>Rental Duration:</strong> {reservationDetails.rental_weeks} {reservationDetails.rental_weeks === 1 ? 'week' : 'weeks'}</p>
+                {reservationDetails.rental_start_date && (
+                  <p><strong>Rental Starts:</strong> {new Date(reservationDetails.rental_start_date).toLocaleDateString()}</p>
+                )}
+                {reservationDetails.due_date && (
+                  <p className={reservationDetails.is_overdue ? 'text-red-600 font-semibold' : ''}>
+                    <strong>Due Date:</strong> {new Date(reservationDetails.due_date).toLocaleDateString()}
+                    {reservationDetails.is_overdue && ` (Overdue by ${reservationDetails.days_overdue} days!)`}
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                <p><strong>Remaining Amount:</strong> ₹{(reservationDetails.book?.price - reservationDetails.reservation_fee).toFixed(2)}</p>
+                {reservationDetails.expires_at && (
+                  <p><strong>Reservation Valid Until:</strong> {new Date(reservationDetails.expires_at).toLocaleString()}</p>
+                )}
+              </>
             )}
           </div>
 
@@ -138,18 +158,39 @@ const PaymentSuccess = () => {
             <ol className="text-sm text-yellow-700 mt-2 space-y-1 list-decimal list-inside">
               <li>Contact the seller using the details above</li>
               <li>Arrange a convenient time to pick up the book</li>
-              <li>Pay the remaining amount (₹{(reservationDetails.book?.price - reservationDetails.reservation_fee).toFixed(2) || '0.00'}) to the seller during pickup (if any)</li>
-              <li>The seller will mark the book as "collected" in their dashboard</li>
+              {reservationDetails.payment_type === 'rental' ? (
+                <>
+                  <li>Return the book before the due date to avoid late fees</li>
+                  <li>The seller will mark the book as "collected" in their dashboard</li>
+                </>
+              ) : (
+                <>
+                  <li>Pay the remaining amount (₹{(reservationDetails.book?.price - reservationDetails.reservation_fee).toFixed(2) || '0.00'}) to the seller during pickup (if any)</li>
+                  <li>The seller will mark the book as "collected" in their dashboard</li>
+                </>
+              )}
             </ol>
           </div>
 
           <div className="bg-gray-50 p-4 rounded-lg mb-6">
             <h4 className="font-semibold text-gray-800">Important Notes:</h4>
             <ul className="text-sm text-gray-700 mt-2 space-y-1">
-              <li>• Your reservation is valid for 24 hours from the time of payment</li>
-              <li>• If you don't collect the book within this time, your payment will be refunded</li>
-              <li>• Please be respectful when contacting the seller</li>
-              <li>• Inspect the book condition before making the final payment</li>
+              {reservationDetails.payment_type === 'rental' ? (
+                <>
+                  <li>• You have {reservationDetails.rental_weeks} {reservationDetails.rental_weeks === 1 ? 'week' : 'weeks'} to return the book</li>
+                  <li>• Return the book before {reservationDetails.due_date ? new Date(reservationDetails.due_date).toLocaleDateString() : 'the due date'}</li>
+                  <li>• Late returns may incur additional charges</li>
+                  <li>• Please be respectful when contacting the seller</li>
+                  <li>• Inspect the book condition before taking it</li>
+                </>
+              ) : (
+                <>
+                  <li>• Your reservation is valid for 24 hours from the time of payment</li>
+                  <li>• If you don't collect the book within this time, your payment will be refunded</li>
+                  <li>• Please be respectful when contacting the seller</li>
+                  <li>• Inspect the book condition before making the final payment</li>
+                </>
+              )}
             </ul>
           </div>
         </>

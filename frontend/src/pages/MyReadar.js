@@ -283,13 +283,30 @@ const MyReadar = () => {
                       <div className="flex-1">
                         <h3 className="font-semibold text-lg">{reservation.book_title}</h3>
                         <p className="text-gray-600">by {reservation.book_author}</p>
-                        <p className="text-sm text-gray-500 mt-2">
-                          Amount Paid: ₹{reservation.amount_paid} | 
-                          Remaining: ₹{reservation.remaining_amount}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          Valid until: {new Date(reservation.valid_until).toLocaleString()}
-                        </p>
+                        
+                        {reservation.payment_type === 'rental' ? (
+                          <>
+                            <p className="text-sm text-gray-500 mt-2">
+                              Rental Fee: ₹{reservation.amount_paid} for {reservation.rental_weeks} {reservation.rental_weeks === 1 ? 'week' : 'weeks'}
+                            </p>
+                            {reservation.due_date && (
+                              <p className={`text-sm mt-1 ${reservation.is_overdue ? 'text-red-600 font-semibold' : 'text-gray-500'}`}>
+                                Due Date: {new Date(reservation.due_date).toLocaleDateString()}
+                                {reservation.is_overdue && ` (Overdue by ${reservation.days_overdue} days!)`}
+                              </p>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-sm text-gray-500 mt-2">
+                              Amount Paid: ₹{reservation.amount_paid} | 
+                              Remaining: ₹{reservation.remaining_amount}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              Valid until: {new Date(reservation.valid_until).toLocaleString()}
+                            </p>
+                          </>
+                        )}
                         
                         {reservation.seller_contact && (
                           <div className="mt-3 p-3 bg-blue-50 rounded border">

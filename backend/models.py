@@ -133,6 +133,9 @@ class Reservation(Base):
     phonepe_payment_id = Column(String)  # PhonePe transaction ID
     payment_status = Column(Enum(PaymentStatus), default=PaymentStatus.PENDING)  # Payment status
     payment_type = Column(String, default="purchase")  # purchase or rental
+    rental_weeks = Column(Integer)  # Number of weeks for rental (1, 2, or 3)
+    rental_start_date = Column(DateTime(timezone=True))  # When rental period starts
+    due_date = Column(DateTime(timezone=True))  # When rented book should be returned
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # relationships

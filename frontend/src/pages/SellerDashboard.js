@@ -150,15 +150,33 @@ const SellerDashboard = () => {
                       )}
                     </div>
                     <div>
-                      <p><strong>Amount Paid:</strong> ₹{reservation.amount_paid}</p>
-                      <p><strong>Remaining:</strong> ₹{reservation.remaining_amount}</p>
-                      <p><strong>Total Price:</strong> ₹{reservation.total_price}</p>
+                      {reservation.payment_type === 'rental' ? (
+                        <>
+                          <p><strong>Rental Fee:</strong> ₹{reservation.amount_paid}</p>
+                          <p><strong>Duration:</strong> {reservation.rental_weeks} {reservation.rental_weeks === 1 ? 'week' : 'weeks'}</p>
+                          {reservation.due_date && (
+                            <p className={reservation.is_overdue ? 'text-red-600 font-semibold' : ''}>
+                              <strong>Due Date:</strong> {new Date(reservation.due_date).toLocaleDateString()}
+                              {reservation.is_overdue && ` (Overdue!)`}
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <p><strong>Amount Paid:</strong> ₹{reservation.amount_paid}</p>
+                          <p><strong>Remaining:</strong> ₹{reservation.remaining_amount}</p>
+                          <p><strong>Total Price:</strong> ₹{reservation.total_price}</p>
+                        </>
+                      )}
                     </div>
                   </div>
 
                   <div className="mb-4">
                     <p><strong>Reserved On:</strong> {new Date(reservation.created_at).toLocaleString()}</p>
                     <p><strong>Valid Until:</strong> {new Date(reservation.valid_until).toLocaleString()}</p>
+                    {reservation.payment_type === 'rental' && reservation.rental_start_date && (
+                      <p><strong>Rental Started:</strong> {new Date(reservation.rental_start_date).toLocaleDateString()}</p>
+                    )}
                   </div>
 
                   <div className="flex items-center space-x-2">

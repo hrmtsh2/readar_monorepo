@@ -8,7 +8,6 @@ from routers.users import router as users_router
 from routers.charity import router as charity_router
 from routers.books import router as books_router
 from routers.payments import router as payments_router
-from routers.phonepe_payments import router as phonepe_router
 from database import engine, Base
 
 load_dotenv()
@@ -49,7 +48,6 @@ app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(users_router, prefix="/api/users", tags=["users"])
 app.include_router(books_router, prefix="/api/books", tags=["books"])
 app.include_router(payments_router, prefix="/api/payments", tags=["payments"])
-app.include_router(phonepe_router, prefix="/api/phonepe", tags=["phonepe"])
 app.include_router(charity_router, prefix="/api/charity", tags=["charity"])
 
 @app.get("/")
@@ -65,13 +63,9 @@ async def health():
 async def root_head():
     return {}
 
-
+# fallback for if alembic upgrade head failed
 @app.on_event("startup")
 async def create_db_tables_if_missing():
-    """Ensure DB tables exist on startup. This is a fallback for deployments
-    (e.g., SQLite on Render) where migrations may not have been run yet.
-    Prefer running Alembic migrations (`alembic upgrade head`) in production.
-    """
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
