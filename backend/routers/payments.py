@@ -66,20 +66,20 @@ async def create_reservation(
     if book.owner_id == current_user.id:
         raise HTTPException(status_code=400, detail="You cannot reserve your own book")
     
-    # Calculate payment amount based on type
+    # Calculate payment amount - always use full selling price
+    advance_amount = float(book.price)
+    
+    # For rentals, validate rental configuration and store rental_weeks
+    rental_weeks = None
     if reservation_data.payment_type == 'rental':
         if not book.is_for_rent or book.weekly_fee is None:
             raise HTTPException(status_code=400, detail="Book is not available for rental")
         
-        # Validate rental_weeks
-        if not reservation_data.rental_weeks or reservation_data.rental_weeks not in [1, 2, 3]:
-            raise HTTPException(status_code=400, detail="Rental weeks must be 1, 2, or 3")
+        # Use book's rental_duration set by seller
+        if not book.rental_duration or book.rental_duration not in [1, 2, 3]:
+            raise HTTPException(status_code=400, detail="Book rental duration not properly configured")
         
-        # Calculate rental fee based on weeks
-        advance_amount = float(book.weekly_fee) * reservation_data.rental_weeks
-    else:
-        # For purchase, use full book price
-        advance_amount = float(book.price)
+        rental_weeks = book.rental_duration
     
     # Create reservation in database first
     reservation = Reservation(
@@ -90,7 +90,7 @@ async def create_reservation(
         status=ReservationStatus.PENDING,
         payment_status=PaymentStatus.PENDING,
         payment_type=reservation_data.payment_type,
-        rental_weeks=reservation_data.rental_weeks if reservation_data.payment_type == 'rental' else None
+        rental_weeks=rental_weeks if reservation_data.payment_type == 'rental' else None
     )
     
     db.add(reservation)

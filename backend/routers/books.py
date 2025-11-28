@@ -69,6 +69,7 @@ class BookCreate(BaseModel):
     is_for_sale: bool = True
     is_for_rent: bool = False
     weekly_fee: Optional[float] = None
+    rental_duration: Optional[int] = None
     condition: Optional[str] = None
 
 class BookResponse(BaseModel):
@@ -86,6 +87,7 @@ class BookResponse(BaseModel):
     is_for_sale: bool
     is_for_rent: bool
     weekly_fee: Optional[float] = None
+    rental_duration: Optional[int] = None
     condition: Optional[str] = None
     owner_id: int
 
@@ -103,6 +105,8 @@ class BookUpdate(BaseModel):
     is_for_sale: Optional[bool] = None
     is_for_rent: Optional[bool] = None
     weekly_fee: Optional[float] = None
+    rental_duration: Optional[int] = None
+    rental_duration: Optional[int] = None
     condition: Optional[str] = None
 
 @router.post("/", response_model=BookResponse)

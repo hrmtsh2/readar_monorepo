@@ -12,7 +12,8 @@ const AddBookModal = ({ isOpen, onClose, onSuccess }) => {
         condition: "",
         is_for_sale: true,
         is_for_rent: false,
-        weekly_fee: ""
+        weekly_fee: "",
+        rental_duration: "1"
     });
     const [submitting, setSubmitting] = useState(false);
     const [potentialMatch, setPotentialMatch] = useState(null);
@@ -81,6 +82,9 @@ const AddBookModal = ({ isOpen, onClose, onSuccess }) => {
                 stock: parseInt(newBook.stock),
                 weekly_fee: newBook.weekly_fee 
                     ? parseFloat(newBook.weekly_fee) 
+                    : null,
+                rental_duration: newBook.is_for_rent && newBook.rental_duration
+                    ? parseInt(newBook.rental_duration)
                     : null
             };
 
@@ -96,7 +100,8 @@ const AddBookModal = ({ isOpen, onClose, onSuccess }) => {
                 condition: "",
                 is_for_sale: true,
                 is_for_rent: false,
-                weekly_fee: ""
+                weekly_fee: "",
+                rental_duration: "1"
             });
             if (onSuccess) onSuccess();
             onClose();
@@ -131,7 +136,8 @@ const AddBookModal = ({ isOpen, onClose, onSuccess }) => {
                 condition: "",
                 is_for_sale: true,
                 is_for_rent: false,
-                weekly_fee: ""
+                weekly_fee: "",
+                rental_duration: "1"
             });
             if (onSuccess) onSuccess();
             onClose();
@@ -153,6 +159,9 @@ const AddBookModal = ({ isOpen, onClose, onSuccess }) => {
                 stock: parseInt(newBook.stock),
                 weekly_fee: newBook.weekly_fee 
                     ? parseFloat(newBook.weekly_fee) 
+                    : null,
+                rental_duration: newBook.is_for_rent && newBook.rental_duration
+                    ? parseInt(newBook.rental_duration)
                     : null
             };
 
@@ -168,7 +177,8 @@ const AddBookModal = ({ isOpen, onClose, onSuccess }) => {
                 condition: "",
                 is_for_sale: true,
                 is_for_rent: false,
-                weekly_fee: ""
+                weekly_fee: "",
+                rental_duration: "1"
             });
             if (onSuccess) onSuccess();
             onClose();
@@ -365,22 +375,40 @@ const AddBookModal = ({ isOpen, onClose, onSuccess }) => {
                         </div>
 
                         {newBook.is_for_rent && (
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    weekly rental fee (₹)
-                                </label>
-                                <input
-                                    type="number"
-                                    name="weekly_fee"
-                                    value={newBook.weekly_fee}
-                                    onChange={handleInputChange}
-                                    step="0.01"
-                                    min="0"
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    placeholder="0.00"
-                                />
-                                <p className="text-sm text-gray-500 mt-1">Amount charged per week for renting this book</p>
-                            </div>
+                            <>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        weekly rental fee (₹)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        name="weekly_fee"
+                                        value={newBook.weekly_fee}
+                                        onChange={handleInputChange}
+                                        step="0.01"
+                                        min="0"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        placeholder="0.00"
+                                    />
+                                    <p className="text-sm text-gray-500 mt-1">Amount charged per week for renting this book</p>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        rental duration (weeks)
+                                    </label>
+                                    <select
+                                        name="rental_duration"
+                                        value={newBook.rental_duration}
+                                        onChange={handleInputChange}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        <option value="1">1 week</option>
+                                        <option value="2">2 weeks</option>
+                                        <option value="3">3 weeks</option>
+                                    </select>
+                                    <p className="text-sm text-gray-500 mt-1">Fixed rental period for this book</p>
+                                </div>
+                            </>
                         )}
 
                         <div className="flex justify-end space-x-3 mt-6">

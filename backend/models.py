@@ -79,6 +79,7 @@ class Book(Base):
     is_for_sale = Column(Boolean, default=True)
     is_for_rent = Column(Boolean, default=False)
     weekly_fee = Column(Float)
+    rental_duration = Column(Integer)  # Number of weeks seller allows rental (1, 2, or 3)
     condition = Column(String)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

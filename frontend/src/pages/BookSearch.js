@@ -18,6 +18,7 @@ const BookSearch = () => {
     for_sale: null,
     for_rent: null
   });
+  const [sortOrder, setSortOrder] = useState('latest'); // 'latest', 'availability', 'availability-reverse'
   const [loading, setLoading] = useState(false);
 
   const searchBooks = useCallback(async () => {
@@ -57,9 +58,42 @@ const BookSearch = () => {
   }, [searchBooks]);
 
   // derive the actually displayed books after client-side filters
-  const displayedBooks = books
+  let displayedBooks = books
     .filter(book => book.status !== 'reserved')
     .filter(book => !(user && book.owner_id === user.id));
+
+  // Apply sorting
+  if (sortOrder === 'availability') {
+    displayedBooks = [...displayedBooks].sort((a, b) => {
+      const getAvailabilityScore = (book) => {
+        const isRent = book.is_for_rent === true || book.is_for_rent === 1;
+        const isSale = book.is_for_sale === true || book.is_for_sale === 1;
+        
+        if (isRent && isSale) return 2; // rent/sale
+        if (isRent && !isSale) return 1; // rent only
+        if (!isRent && isSale) return 3; // sale only
+        return 4;
+      };
+      const scoreA = getAvailabilityScore(a);
+      const scoreB = getAvailabilityScore(b);
+      return scoreA - scoreB;
+    });
+  } else if (sortOrder === 'availability-reverse') {
+    displayedBooks = [...displayedBooks].sort((a, b) => {
+      const getAvailabilityScore = (book) => {
+        const isRent = book.is_for_rent === true || book.is_for_rent === 1;
+        const isSale = book.is_for_sale === true || book.is_for_sale === 1;
+        
+        if (isRent && isSale) return 2; // rent/sale
+        if (isRent && !isSale) return 3; // rent only
+        if (!isRent && isSale) return 1; // sale only
+        return 4;
+      };
+      const scoreA = getAvailabilityScore(a);
+      const scoreB = getAvailabilityScore(b);
+      return scoreA - scoreB;
+    });
+  }
 
   const handleFilterChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -76,19 +110,19 @@ const BookSearch = () => {
 
   return (
     <div className="max-w-6xl mx-auto">
-      <h1 className="text-3xl font-bold text-gray-900 mb-6">search books to buy or borrow</h1>
+      <h1 className="text-2xl font-bold text-gray-900 mb-4">search books to buy or borrow</h1>
       
       {/*search filters*/}
-      <div className="bg-white p-6 rounded-lg shadow mb-6">
+      <div className="bg-white p-4 rounded-lg shadow mb-4">
         <form onSubmit={handleSubmit}>
-          <div className="grid md:grid-cols-2 gap-4 mb-4">
+          <div className="grid md:grid-cols-2 gap-3 mb-3">
             <input
               type="text"
               name="q"
-              placeholder="Search title, author, tags, description..."
+              placeholder="Search title, author, tags..."
               value={filters.q}
               onChange={handleFilterChange}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <input
               type="text"
@@ -96,18 +130,18 @@ const BookSearch = () => {
               placeholder="City"
               value={filters.city}
               onChange={handleFilterChange}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           
-          <div className="grid md:grid-cols-3 gap-4 mb-4">
+          <div className="grid md:grid-cols-3 gap-3 mb-3">
             <input
               type="number"
               name="min_price"
               placeholder="Min price"
               value={filters.min_price}
               onChange={handleFilterChange}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <input
               type="number"
@@ -115,34 +149,34 @@ const BookSearch = () => {
               placeholder="Max price"
               value={filters.max_price}
               onChange={handleFilterChange}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <button
               type="submit"
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 text-sm rounded-md"
             >
               Search
             </button>
           </div>
           
-          <div className="flex space-x-4">
-            <label className="flex items-center">
+          <div className="flex space-x-3">
+            <label className="flex items-center text-sm">
               <input
                 type="checkbox"
                 name="for_sale"
                 checked={filters.for_sale === true}
                 onChange={handleFilterChange}
-                className="mr-2"
+                className="mr-1.5"
               />
               for sale
             </label>
-            <label className="flex items-center">
+            <label className="flex items-center text-sm">
               <input
                 type="checkbox"
                 name="for_rent"
                 checked={filters.for_rent === true}
                 onChange={handleFilterChange}
-                className="mr-2"
+                className="mr-1.5"
               />
               for rent
             </label>
@@ -151,12 +185,24 @@ const BookSearch = () => {
       </div>
 
       {/*search results*/}
-      <div className="mb-4">
+      <div className="mb-4 flex justify-between items-center">
         {loading ? (
           <div className="h-4 w-28 bg-gray-200 rounded animate-pulse" />
         ) : (
           <div className="text-sm text-gray-700">{displayedBooks.length} {displayedBooks.length === 1 ? 'book' : 'books'} found</div>
         )}
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-700">Sort by:</label>
+          <select
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value)}
+            className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="latest">Latest</option>
+            <option value="availability">Rent → Rent/Sale → Sale</option>
+            <option value="availability-reverse">Sale → Rent/Sale → Rent</option>
+          </select>
+        </div>
       </div>
 
       {loading ? (
@@ -167,34 +213,50 @@ const BookSearch = () => {
         <>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {displayedBooks.map((book) => (
-            <div key={book.id} className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-shadow flex flex-col h-full">
+            <div key={book.id} className="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow flex flex-col h-full">
+              {/* Book Image */}
+              <div className="w-full h-32 mb-2 flex items-center justify-center bg-gray-50 rounded">
+                <img
+                  src={book.image_url || '/logo-readar.png'}
+                  alt={book.title}
+                  className="max-h-full max-w-full object-contain"
+                  onError={(e) => {
+                    e.target.src = '/logo-readar.png';
+                  }}
+                />
+              </div>
+              
               {/* Title - fixed height */}
-              <h3 className="text-lg font-semibold text-gray-900 mb-1 h-14 line-clamp-2">{book.title}</h3>
+              <h3 className="text-base font-semibold text-gray-900 mb-1 h-10 line-clamp-2">{book.title}</h3>
               
               {/* Author - fixed height */}
-              <div className="text-sm text-gray-700 mb-2 h-6">
+              <div className="text-xs text-gray-700 mb-1 h-5">
                 {book.author && <span>by {book.author}</span>}
               </div>
               
               {/* Description - fixed height */}
-              <div className="text-gray-600 mb-4 text-sm h-16 overflow-hidden">
-                {book.description && <p className="line-clamp-3">{book.description.substring(0, 120)}{book.description.length > 120 ? '...' : ''}</p>}
+              <div className="text-gray-600 mb-2 text-xs h-8 overflow-hidden">
+                {book.description && <p className="line-clamp-1">{book.description.substring(0, 80)}{book.description.length > 80 ? '...' : ''}</p>}
               </div>
               
               {/* Price and status section - fixed height */}
-              <div className="flex justify-between items-center mb-4 h-12">
+              <div className="flex justify-between items-center mb-2 h-10">
                 <div className="flex flex-col">
-                  <span className="text-xl font-bold text-green-600">₹{book.price}</span>
+                  <span className="text-lg font-bold text-green-600">₹{book.price}</span>
                   {book.is_for_rent && book.weekly_fee && (
-                    <span className="text-sm text-blue-600">₹{book.weekly_fee}/week rental</span>
+                    <span className="text-xs text-blue-600">₹{book.weekly_fee}/week</span>
                   )}
                 </div>
-                <span className={`px-2 py-1 rounded text-xs h-fit ${
-                  book.status === 'in_stock' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                }`}>
-                  {/*"in_stock" -> "in stock"*/}
-                  {book.status.replace('_', ' ')}
-                </span>
+                <div className="flex items-center gap-2">
+                  {book.stock && book.stock > 0 && (
+                    <span className="text-xs text-gray-600">{book.stock}</span>
+                  )}
+                  <span className={`px-2 py-1 rounded text-xs ${
+                    book.status === 'in_stock' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {book.status.replace('_', ' ')}
+                  </span>
+                </div>
               </div>
               
               {/* Buttons - pushed to bottom with mt-auto */}

@@ -67,7 +67,7 @@ const Sell = () => {
         return (
             <div className="max-w-6xl mx-auto p-6">
                 <div className="text-center">
-                    <h1 className="text-3xl font-bold text-gray-900">please log in to access this page</h1>
+                    <h1 className="text-3xl font-bold text-gray-900">please log in to start selling</h1>
                 </div>
             </div>
         );
