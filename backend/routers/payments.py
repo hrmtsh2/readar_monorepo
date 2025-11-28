@@ -566,14 +566,14 @@ async def get_seller_reservations(
     return reservations
 
 
-# Mock payment endpoints for testing without Razorpay account
+# Mock payment endpoints for testing
 @router.post("/mock-reserve")
 async def create_mock_reservation(
     reservation_data: ReservationCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Create a mock reservation without Razorpay integration"""
+    """Create a mock reservation for testing purposes"""
     
     # Get the book
     result = await db.execute(select(Book).where(Book.id == reservation_data.book_id))

@@ -127,8 +127,7 @@ class Reservation(Base):
     reservation_fee = Column(Float, nullable=False)
     status = Column(Enum(ReservationStatus), default=ReservationStatus.PENDING)
     expires_at = Column(DateTime(timezone=True), nullable=False)
-    payment_id = Column(String)  # Razorpay payment ID
-    razorpay_order_id = Column(String)  # Razorpay order ID
+    payment_id = Column(String)  # Generic payment ID
     phonepe_order_id = Column(String)  # PhonePe merchant order ID
     phonepe_payment_id = Column(String)  # PhonePe transaction ID
     payment_status = Column(Enum(PaymentStatus), default=PaymentStatus.PENDING)  # Payment status
@@ -148,11 +147,9 @@ class Payment(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     reservation_id = Column(Integer, ForeignKey("reservations.id"), nullable=False)
-    razorpay_order_id = Column(String, nullable=True)
-    razorpay_payment_id = Column(String, nullable=True)
     phonepe_order_id = Column(String, nullable=True)  # PhonePe merchant order ID
     phonepe_payment_id = Column(String, nullable=True)  # PhonePe transaction ID
-    payment_method = Column(String, nullable=True)  # razorpay, phonepe, etc.
+    payment_method = Column(String, nullable=True)  # phonepe, stripe, etc.
     transaction_id = Column(String, nullable=True)  # Generic transaction ID
     amount = Column(Float, nullable=False)
     currency = Column(String, default="INR")

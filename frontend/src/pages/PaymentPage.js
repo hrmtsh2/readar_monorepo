@@ -48,7 +48,7 @@ const PaymentPage = () => {
       const response = await api.post('/payments/phonepe/initiate', payload);
       
       // PhonePe returns payment_url - redirect user directly
-      if (response.data.success && response.data.payment_url) {
+      if (response.data.payment_url) {
         window.location.href = response.data.payment_url;
       } else {
         setError('Failed to initiate payment');

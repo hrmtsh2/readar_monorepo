@@ -27,8 +27,8 @@ def upgrade() -> None:
     op.add_column('payments', sa.Column('payment_method', sa.String(), nullable=True))
     op.add_column('payments', sa.Column('transaction_id', sa.String(), nullable=True))
     
-    # SQLite doesn't support ALTER COLUMN, so skip nullable change for razorpay_order_id
-    # It won't cause issues since we're adding PhonePe as alternative
+    # SQLite doesn't support ALTER COLUMN for existing fields
+    # Legacy fields remain for backward compatibility
     
     # Add PhonePe columns to reservations table
     op.add_column('reservations', sa.Column('phonepe_order_id', sa.String(), nullable=True))
