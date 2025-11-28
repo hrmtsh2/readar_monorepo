@@ -21,7 +21,6 @@ import PaymentSuccess from './pages/PaymentSuccess';
 import PaymentFailed from './pages/PaymentFailed';
 import PaymentVerifying from './pages/PaymentVerifying';
 import SellerDashboard from './pages/SellerDashboard';
-import MockPayment from './pages/MockPayment';
 
 function App() {
   return (
@@ -63,14 +62,6 @@ function App() {
                 } 
               />
               <Route path="/reservation-confirmation" element={<ReservationConfirmation />} />
-              <Route 
-                path="/mock-payment" 
-                element={
-                  <ProtectedRoute>
-                    <MockPayment />
-                  </ProtectedRoute>
-                } 
-              />
               <Route 
                 path="/payment" 
                 element={

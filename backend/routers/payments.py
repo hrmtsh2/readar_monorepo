@@ -101,7 +101,7 @@ async def create_reservation(
     merchant_order_id = f"RES_{reservation.id}_{int(datetime.now().timestamp())}"
     
     # Create redirect URL
-    redirect_url = f"{BACKEND_URL}/api/phonepe/callback?reservation_id={reservation.id}"
+    redirect_url = f"{BACKEND_URL}/api/payments/phonepe/callback?reservation_id={reservation.id}"
     
     # Create PhonePe payment order
     payment_response = create_payment_order(
@@ -122,7 +122,7 @@ async def create_reservation(
         await db.delete(reservation)
         await db.commit()
         raise HTTPException(
-            status_code=500, 
+            status_code=500,
             detail=f"Failed to create PhonePe order: {payment_response.get('error')}"
         )
     
@@ -566,125 +566,6 @@ async def get_seller_reservations(
     return reservations
 
 
-# Mock payment endpoints for testing
-@router.post("/mock-reserve")
-async def create_mock_reservation(
-    reservation_data: ReservationCreate,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Create a mock reservation for testing purposes"""
-    
-    # Get the book
-    result = await db.execute(select(Book).where(Book.id == reservation_data.book_id))
-    book = result.scalar_one_or_none()
-    
-    if not book:
-        raise HTTPException(status_code=404, detail="Book not found")
-    
-    if book.status != BookStatus.IN_STOCK:
-        raise HTTPException(status_code=400, detail="Book is not available for reservation")
-    
-    if book.owner_id == current_user.id:
-        raise HTTPException(status_code=400, detail="You cannot reserve your own book")
-    
-    # Advance amount should be the full book price (mock flow)
-    advance_amount = float(book.price)
-    
-    # Create mock order ID
-    mock_order_id = f"mock_order_{book.id}_{current_user.id}_{int(datetime.now().timestamp())}"
-    
-    # Create reservation in database
-    reservation = Reservation(
-        book_id=book.id,
-        user_id=current_user.id,
-        reservation_fee=advance_amount,
-        phonepe_order_id=mock_order_id,  # Store mock order ID here
-        expires_at=datetime.now() + timedelta(hours=24),  # 24 hour expiry
-        status=ReservationStatus.PENDING,
-        payment_status=PaymentStatus.PENDING,
-        payment_type=reservation_data.payment_type
-    )
-    
-    db.add(reservation)
-    await db.commit()
-    await db.refresh(reservation)
-    
-    # Create mock payment record
-    payment = Payment(
-        reservation_id=reservation.id,
-        phonepe_order_id=mock_order_id,
-        amount=advance_amount,
-        currency="INR",
-        status=PaymentStatus.PENDING,
-        payment_method="phonepe_mock"
-    )
-    
-    db.add(payment)
-    await db.commit()
-    
-    return {
-        "id": reservation.id,
-        "book_id": book.id,
-        "reservation_fee": advance_amount,
-        "mock_order_id": mock_order_id,
-        "book_title": book.title
-    }
-
-
-@router.post("/mock-verify-payment")
-async def mock_verify_payment(
-    payment_data: dict,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Mock payment verification for testing"""
-    
-    reservation_id = payment_data.get("reservation_id")
-    mock_order_id = payment_data.get("mock_order_id")
-    mock_payment_id = payment_data.get("mock_payment_id")
-    
-    # Get reservation
-    result = await db.execute(
-        select(Reservation).where(Reservation.id == reservation_id)
-    )
-    reservation = result.scalar_one_or_none()
-    
-    if not reservation:
-        raise HTTPException(status_code=404, detail="Reservation not found")
-    
-    if reservation.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    # Update reservation status
-    reservation.status = ReservationStatus.CONFIRMED
-    reservation.payment_status = PaymentStatus.PAID
-    reservation.phonepe_payment_id = mock_payment_id
-    
-    # Update payment status
-    result = await db.execute(
-        select(Payment).where(Payment.reservation_id == reservation_id)
-    )
-    payment = result.scalar_one_or_none()
-    
-    if payment:
-        payment.status = PaymentStatus.PAID
-        payment.phonepe_payment_id = mock_payment_id
-        payment.transaction_id = mock_payment_id
-    
-    # Update book status
-    result = await db.execute(
-        select(Book).where(Book.id == reservation.book_id)
-    )
-    book = result.scalar_one_or_none()
-    
-    if book:
-        book.status = BookStatus.RESERVED
-    
-    await db.commit()
-    
-    return {"status": "success", "message": "Mock payment verified successfully"}
-
 # Payment Page Integration for Model A (Book Purchases)
 @router.post("/payment-page/create")
 async def create_payment_page(
@@ -726,7 +607,7 @@ async def create_payment_page(
     merchant_order_id = f"RES_{reservation.id}_{int(datetime.now().timestamp())}"
     
     # Create redirect URL
-    redirect_url = f"{BACKEND_URL}/api/phonepe/callback?reservation_id={reservation.id}"
+    redirect_url = f"{BACKEND_URL}/api/payments/phonepe/callback?reservation_id={reservation.id}"
     
     # Create PhonePe payment order
     payment_response = create_payment_order(

@@ -18,6 +18,11 @@ PHONEPE_CLIENT_SECRET = os.getenv("PHONEPE_CLIENT_SECRET", "MDVmZjgwNTgtZDYwZS00
 PHONEPE_CLIENT_VERSION = int(os.getenv("PHONEPE_CLIENT_VERSION", "1"))
 PHONEPE_ENV = os.getenv("PHONEPE_ENV", "SANDBOX")  # SANDBOX or PRODUCTION
 
+print(f"PhonePe Configuration Loaded:")
+print(f"  Client ID: {PHONEPE_CLIENT_ID}")
+print(f"  Client Version: {PHONEPE_CLIENT_VERSION}")
+print(f"  Environment: {PHONEPE_ENV}")
+
 # Initialize PhonePe client
 def get_phonepe_client():
     """Get or create PhonePe client instance"""
@@ -57,27 +62,26 @@ def create_payment_order(amount: float, redirect_url: str, merchant_order_id: st
         # Convert amount to paisa (PhonePe requires amount in paisa)
         amount_in_paisa = int(amount * 100)
         
-        # Create meta info if metadata provided
-        meta_info = None
-        if metadata:
-            meta_info = MetaInfo(
-                udf1=metadata.get("udf1", ""),
-                udf2=metadata.get("udf2", ""),
-                udf3=metadata.get("udf3", ""),
-                udf4=metadata.get("udf4", ""),
-                udf5=metadata.get("udf5", "")
-            )
-        
-        # Build payment request
+        # Build payment request without optional metadata to avoid errors
+        # MetaInfo causes issues in sandbox - keep it simple
         pay_request = StandardCheckoutPayRequest.build_request(
             merchant_order_id=merchant_order_id,
             amount=amount_in_paisa,
-            redirect_url=redirect_url,
-            meta_info=meta_info
+            redirect_url=redirect_url
         )
         
         # Initiate payment
+        print(f"Initiating PhonePe payment:")
+        print(f"  Merchant Order ID: {merchant_order_id}")
+        print(f"  Amount (paisa): {amount_in_paisa}")
+        print(f"  Redirect URL: {redirect_url}")
+        
         pay_response = client.pay(pay_request)
+        
+        print(f"PhonePe Response:")
+        print(f"  Payment URL: {pay_response.redirect_url}")
+        print(f"  Order ID: {pay_response.order_id}")
+        print(f"  State: {pay_response.state}")
         
         return {
             "success": True,
