@@ -27,18 +27,25 @@ const PaymentSuccess = () => {
 
   const verifyPaymentPageAndFetch = useCallback(async () => {
     try {
-      // Verify the payment page payment
-      await api.post(`/payments/payment-page/verify?reservation_id=${reservationId}`);
+      // Check PhonePe payment status first
+      const statusResponse = await api.get(`/phonepe/status/${reservationId}`);
       
-      // Then fetch reservation details
+      // If payment is not completed, redirect to failed page
+      if (statusResponse.data.phonepe_status !== 'COMPLETED') {
+        navigate(`/payment-failed?reservation_id=${reservationId}`);
+        return;
+      }
+      
+      // If completed, fetch reservation details
       const response = await api.get(`/payments/reservation/${reservationId}`);
       setReservationDetails(response.data);
     } catch (error) {
-      setError('Failed to verify payment or fetch reservation details');
+      // On error, redirect to failed page
+      navigate(`/payment-failed?reservation_id=${reservationId}`);
     } finally {
       setLoading(false);
     }
-  }, [reservationId]);
+  }, [reservationId, navigate]);
 
   useEffect(() => {
     if (!reservationId) {

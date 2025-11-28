@@ -57,26 +57,26 @@ const Register = () => {
         <div className="grid md:grid-cols-2 gap-4 mb-4">
           <div>
             <label className="block text-gray-700 text-sm font-bold mb-2">first name</label>
-            <input type="text" name="first_name" value={formData.first_name} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+            <input type="text" name="first_name" value={formData.first_name} onChange={handleChange} maxLength="50" className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required />
           </div>
           <div>
             <label className="block text-gray-700 text-sm font-bold mb-2">last name</label>
-            <input type="text" name="last_name" value={formData.last_name} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+            <input type="text" name="last_name" value={formData.last_name} onChange={handleChange} maxLength="50" className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required />
           </div>
         </div>
 
         <div className="grid md:grid-cols-3 gap-4 mb-4">
           <div>
             <label className="block text-gray-700 text-sm font-bold mb-2">city</label>
-            <input type="text" name="city" value={formData.city} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+            <input type="text" name="city" value={formData.city} onChange={handleChange} maxLength="100" className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required />
           </div>
           <div>
             <label className="block text-gray-700 text-sm font-bold mb-2">state</label>
-            <input type="text" name="state" value={formData.state} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+            <input type="text" name="state" value={formData.state} onChange={handleChange} maxLength="100" className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required />
           </div>
           <div>
             <label className="block text-gray-700 text-sm font-bold mb-2">zip code</label>
-            <input type="text" name="zip_code" value={formData.zip_code} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+            <input type="text" name="zip_code" value={formData.zip_code} onChange={handleChange} maxLength="20" className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required />
           </div>
         </div>
 
@@ -89,6 +89,7 @@ const Register = () => {
             name="email"
             value={formData.email}
             onChange={handleChange}
+            maxLength="100"
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
           />
@@ -104,6 +105,8 @@ const Register = () => {
               name="username"
               value={formData.username}
               onChange={handleChange}
+              maxLength="50"
+              minLength="3"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
@@ -120,6 +123,8 @@ const Register = () => {
             name="password"
             value={formData.password}
             onChange={handleChange}
+            minLength="8"
+            maxLength="100"
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
           />
@@ -135,6 +140,7 @@ const Register = () => {
               name="phone"
               value={formData.phone}
               onChange={handleChange}
+              maxLength="15"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -148,6 +154,7 @@ const Register = () => {
             name="address"
             value={formData.address}
             onChange={handleChange}
+            maxLength="500"
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             rows="3"
           />

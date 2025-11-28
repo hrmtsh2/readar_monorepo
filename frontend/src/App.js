@@ -19,6 +19,7 @@ import PaymentPage from './pages/PaymentPage';
 import PaymentPageIntegration from './pages/PaymentPageIntegration';
 import PaymentSuccess from './pages/PaymentSuccess';
 import PaymentFailed from './pages/PaymentFailed';
+import PaymentVerifying from './pages/PaymentVerifying';
 import SellerDashboard from './pages/SellerDashboard';
 import MockPayment from './pages/MockPayment';
 
@@ -83,6 +84,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <PaymentPageIntegration />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/payment-verifying" 
+                element={
+                  <ProtectedRoute>
+                    <PaymentVerifying />
                   </ProtectedRoute>
                 } 
               />

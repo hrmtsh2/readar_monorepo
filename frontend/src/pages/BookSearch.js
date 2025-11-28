@@ -167,25 +167,38 @@ const BookSearch = () => {
         <>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {displayedBooks.map((book) => (
-            <div key={book.id} className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-shadow">
-              <h3 className="text-lg font-semibold text-gray-900 mb-1">{book.title}</h3>
-              {book.author && <div className="text-sm text-gray-700 mb-2">by {book.author}</div>}
-              {book.description && <p className="text-gray-600 mb-2 text-sm">{book.description.substring(0, 100)}...</p>}
-              <div className="flex justify-between items-center mb-4">
+            <div key={book.id} className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-shadow flex flex-col h-full">
+              {/* Title - fixed height */}
+              <h3 className="text-lg font-semibold text-gray-900 mb-1 h-14 line-clamp-2">{book.title}</h3>
+              
+              {/* Author - fixed height */}
+              <div className="text-sm text-gray-700 mb-2 h-6">
+                {book.author && <span>by {book.author}</span>}
+              </div>
+              
+              {/* Description - fixed height */}
+              <div className="text-gray-600 mb-4 text-sm h-16 overflow-hidden">
+                {book.description && <p className="line-clamp-3">{book.description.substring(0, 120)}{book.description.length > 120 ? '...' : ''}</p>}
+              </div>
+              
+              {/* Price and status section - fixed height */}
+              <div className="flex justify-between items-center mb-4 h-12">
                 <div className="flex flex-col">
                   <span className="text-xl font-bold text-green-600">₹{book.price}</span>
                   {book.is_for_rent && book.weekly_fee && (
                     <span className="text-sm text-blue-600">₹{book.weekly_fee}/week rental</span>
                   )}
                 </div>
-                <span className={`px-2 py-1 rounded text-xs ${
+                <span className={`px-2 py-1 rounded text-xs h-fit ${
                   book.status === 'in_stock' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
                 }`}>
                   {/*"in_stock" -> "in stock"*/}
                   {book.status.replace('_', ' ')}
                 </span>
               </div>
-              <div className="flex space-x-2">
+              
+              {/* Buttons - pushed to bottom with mt-auto */}
+              <div className="flex space-x-2 mt-auto">
                     {book.is_for_sale && (
                           <ReserveButton book={book} />
                         )}

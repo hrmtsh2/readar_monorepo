@@ -177,7 +177,7 @@ async def phonepe_payment_callback(
     payment_state = status_response.get("state")
     print(f"Payment state received: '{payment_state}' (type: {type(payment_state)})")
     
-    # Handle different payment states
+    # Check payment state and redirect accordingly
     if payment_state == "COMPLETED":
         print("Payment COMPLETED - updating reservation to CONFIRMED")
         # Update reservation status
@@ -202,30 +202,17 @@ async def phonepe_payment_callback(
         
         await db.commit()
         
-        # Redirect to success page
+        print(f"Redirecting to payment-success page for reservation {reservation_id}")
         return RedirectResponse(url=f"{FRONTEND_URL}/payment-success?reservation_id={reservation_id}")
     
-    elif payment_state == "FAILED":
-        print("Payment FAILED - updating reservation to FAILED")
-        # Update reservation as failed
-        reservation.payment_status = PaymentStatus.FAILED
-        reservation.status = ReservationStatus.CANCELLED
-        await db.commit()
-        
-        return RedirectResponse(url=f"{FRONTEND_URL}/payment-failed?reservation_id={reservation_id}")
-    
-    elif payment_state == "PENDING":
-        print("Payment PENDING - keeping reservation as PENDING")
-        # Payment still pending, keep reservation as is
-        return RedirectResponse(url=f"{FRONTEND_URL}/payment-pending?reservation_id={reservation_id}")
-    
     else:
-        print(f"Unknown payment state: {payment_state} - treating as failed")
-        # Unknown state, treat as failed
+        print(f"Payment not completed (state: {payment_state}) - updating reservation to CANCELLED")
+        # Update reservation as failed/cancelled for any non-completed state
         reservation.payment_status = PaymentStatus.FAILED
         reservation.status = ReservationStatus.CANCELLED
         await db.commit()
         
+        print(f"Redirecting to payment-failed page for reservation {reservation_id}")
         return RedirectResponse(url=f"{FRONTEND_URL}/payment-failed?reservation_id={reservation_id}")
 
 
@@ -254,15 +241,54 @@ async def get_payment_status(
             raise HTTPException(status_code=403, detail="Not authorized to view this reservation")
     
     # Check payment status with PhonePe
+    phonepe_status = None
+    transaction_id = None
+    
     if reservation.phonepe_order_id:
         status_response = check_payment_status(reservation.phonepe_order_id)
+        
+        if status_response.get("success"):
+            phonepe_status = status_response.get("state")
+            transaction_id = status_response.get("transaction_id")
+            
+            # Update reservation status based on PhonePe status if it changed
+            if phonepe_status == "COMPLETED" and reservation.payment_status != PaymentStatus.PAID:
+                reservation.payment_status = PaymentStatus.PAID
+                reservation.status = ReservationStatus.CONFIRMED
+                
+                # Update book status
+                result = await db.execute(select(Book).where(Book.id == reservation.book_id))
+                book = result.scalar_one_or_none()
+                if book:
+                    book.status = BookStatus.RESERVED
+                
+                # Create payment record if not exists
+                payment_exists = await db.execute(
+                    select(Payment).where(Payment.reservation_id == reservation.id)
+                )
+                if not payment_exists.scalar_one_or_none():
+                    payment = Payment(
+                        reservation_id=reservation.id,
+                        amount=reservation.reservation_fee,
+                        payment_method="phonepe",
+                        transaction_id=transaction_id,
+                        status=PaymentStatus.PAID
+                    )
+                    db.add(payment)
+                
+                await db.commit()
+                
+            elif phonepe_status in ["FAILED", "PENDING"] and reservation.payment_status != PaymentStatus.FAILED:
+                reservation.payment_status = PaymentStatus.FAILED
+                reservation.status = ReservationStatus.CANCELLED
+                await db.commit()
         
         return {
             "reservation_id": reservation.id,
             "payment_status": reservation.payment_status,
             "reservation_status": reservation.status,
-            "phonepe_status": status_response.get("state") if status_response.get("success") else None,
-            "transaction_id": status_response.get("transaction_id") if status_response.get("success") else None,
+            "phonepe_status": phonepe_status,
+            "transaction_id": transaction_id,
             "amount": reservation.reservation_fee
         }
     
